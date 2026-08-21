@@ -15,8 +15,9 @@ versioned package.
 ### Fixed
 - Panel mounts on `<body>`; `position: fixed` no longer resolves against a
   transformed or clipped ancestor.
-- Mobile detection uses viewport width only; short desktop windows are no
-  longer misread as mobile.
+- Mobile detection is width-based, with a coarse-pointer check added for
+  landscape phones (wide but short viewports on a touch device); a short
+  desktop window with a fine pointer is not misread as mobile.
 - Trigger URLs resolve at click time, so SPA re-renders cannot fire a stale offer.
 - Modified clicks (Cmd/Ctrl/Shift/Alt, middle-click) open a new tab as expected.
 - Resizing below the breakpoint no longer leaves the page scroll-locked.

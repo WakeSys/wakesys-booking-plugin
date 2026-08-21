@@ -227,6 +227,17 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
       // ws-lock, and pops any history entry this instance still owns. A
       // stale destroyed instance must never later touch body classList or
       // history state again (see close(), which is now gated on destroyed).
+      //
+      // popPanelState() calls history.back(), which — if destroy() ever ran
+      // during a programmatic client-side navigation rather than a user
+      // dismissal — would bounce the visitor back a page. This is treated as
+      // near-unreachable and left as is: the overlay intercepts link clicks
+      // and the focus trap holds Tab inside the panel while it's open, so
+      // nothing under application control can navigate the host page out
+      // from under an open panel. The alternative (skipping history.back()
+      // here) resurrects the phantom-history-entry defect this depth-counter
+      // design was built to fix — an entry pushed by open() that nothing
+      // ever pops, so the user's next real back button press does nothing.
       if (isShown()) {
         hide();
         popPanelState();

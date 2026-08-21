@@ -42,6 +42,36 @@ describe('panel mounting', () => {
   });
 });
 
+describe('iframe security attributes', () => {
+  // These three attributes are quoted verbatim as a security claim in
+  // README.md ("Security" section) and in the consuming site's
+  // app/plugin/page.tsx. A refactor that silently drops one — e.g.
+  // allow-forms, which the booking flow needs to submit checkout forms —
+  // must fail the suite, not just a manual read of panel.ts.
+  it('sandboxes the iframe with exactly the documented flag string', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    const iframe = document.querySelector('iframe')!;
+    expect(iframe.getAttribute('sandbox')).toBe(
+      'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox',
+    );
+  });
+
+  it('scopes allow to payment and geolocation on the booking origin', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    // Set via the `allow` IDL property (iframe.allow = ...) rather than
+    // setAttribute, so assert through the same property — jsdom does not
+    // reflect it back onto the `allow` content attribute.
+    const iframe = document.querySelector('iframe')!;
+    expect(iframe.allow).toBe('payment https://wakesys.app; geolocation https://wakesys.app');
+  });
+
+  it('sets a referrer policy that never leaks the full URL over http', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    const iframe = document.querySelector('iframe')!;
+    expect(iframe.referrerPolicy).toBe('no-referrer-when-downgrade');
+  });
+});
+
 describe('open / close', () => {
   it('shows the panel and loads the url', () => {
     panel = createPanel({ bookingUrl: URL_A });

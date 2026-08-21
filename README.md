@@ -46,6 +46,7 @@ panel.open();
 | `isOpen()`        | Returns whether the panel is currently open.                          |
 | `setBookingUrl(url)` | Replaces the default URL used by future `open()` calls.            |
 | `getBookingUrl()` | Returns the current default URL.                                      |
+| `getNoticeSlot()` | Returns the DOM element between the header and the iframe, for callers that want to render their own banner there (e.g. via a portal) without going through the React adapter. |
 | `destroy()`       | Removes all DOM and listeners this instance created. Safe to call twice. |
 
 The package also exports a few helpers, useful if you're building a custom trigger UI:
@@ -90,6 +91,11 @@ function BookButton() {
 | `position`             | No       | `'right'` \| `'left'`. Default `'right'`.                                   |
 | `title`                | No       | Panel header text and `aria-label`. Default `'Booking'`.                    |
 | `renderMobileFallback` | No       | `(args: { url, confirm, cancel }) => ReactNode`, rendered instead of opening a new tab below the breakpoint. Call `args.confirm()` to proceed to `args.url`, or `args.cancel()` to dismiss. |
+| `renderNotice`         | No       | `() => ReactNode`, portaled into the panel between the header and the iframe (e.g. a demo-mode banner). Absent renders nothing. |
+
+Changing `title`, `position`, or `mobileBreakpoint` recreates the panel instance and closes an open booking. `bookingUrl` deliberately does not — it updates the existing panel in place, so an in-progress booking survives a URL change (e.g. a route-driven park switch).
+
+An invalid `bookingUrl` **throws** from `BookingPanelProvider` (and from `createBookingPanel` generally), where the vanilla script-tag adapter degrades to a console warning and a no-op `window.BookingPanel` instead. This is deliberate: the React prop is a typed value supplied by the app's own author, so a bad URL is a bug worth failing loudly on; the vanilla adapter boots from `data-` attributes on a page it doesn't control, so it degrades gracefully rather than breaking a stranger's page.
 
 `useBookingPanel()` returns:
 

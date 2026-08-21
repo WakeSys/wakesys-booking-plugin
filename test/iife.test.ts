@@ -249,3 +249,37 @@ describe('teardown', () => {
     expect(instance!.isOpen()).toBe(true);
   });
 });
+
+describe('double-bind guard', () => {
+  it('binds a trigger only once, even after a MutationObserver batch re-runs bindAll()', async () => {
+    mountContainer({ 'data-wakesys-url': URL_A });
+    const btn = document.createElement('button');
+    btn.setAttribute('data-wakesys-book', '');
+    document.body.appendChild(btn);
+
+    const openSpy = vi.fn();
+    const realCreateBookingPanel = core.createBookingPanel;
+    vi.spyOn(core, 'createBookingPanel').mockImplementation((config) => {
+      const panel = realCreateBookingPanel(config);
+      const realOpen = panel.open.bind(panel);
+      panel.open = (...args: Parameters<typeof realOpen>) => {
+        openSpy(...args);
+        return realOpen(...args);
+      };
+      return panel;
+    });
+
+    instance = bootFromDom();
+
+    // Any DOM mutation makes the MutationObserver's 100ms-debounced bindAll()
+    // re-run against the same, already-bound <button>. Without the
+    // `bound.has(el)` guard in bind(), this attaches a second click listener,
+    // so one click below would call panel.open() twice and re-navigate the
+    // iframe mid-booking.
+    document.body.appendChild(document.createElement('div'));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    btn.click();
+    expect(openSpy).toHaveBeenCalledTimes(1);
+  });
+});
