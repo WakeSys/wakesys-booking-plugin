@@ -1,0 +1,20 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: dist matches source
+        run: npm run check-dist
+      - name: README advertises the current version
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          grep -q "wakesys-booking-plugin@${PKG}/" README.md \
+            || { echo "README CDN version does not match package.json ($PKG)"; exit 1; }
