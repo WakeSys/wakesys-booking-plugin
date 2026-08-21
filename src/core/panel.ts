@@ -19,6 +19,7 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
   let bookingUrl = config.bookingUrl;
   let lastFocused: HTMLElement | null = null;
   let destroyed = false;
+  let focusTimer: ReturnType<typeof setTimeout> | null = null;
 
   ensureStyles(buildCss(breakpoint, position));
 
@@ -88,8 +89,14 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
     }
   }
 
-  function isOpen(): boolean {
+  /** Panel DOM state, independent of the destroyed flag. Used internally so
+   *  destroy() can route through hide() even after it has flipped destroyed. */
+  function isShown(): boolean {
     return panel.classList.contains('ws-show');
+  }
+
+  function isOpen(): boolean {
+    return !destroyed && isShown();
   }
 
   function open(url?: string): void {
@@ -107,7 +114,7 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
       return;
     }
 
-    const wasOpen = isOpen();
+    const wasOpen = isShown();
 
     spinner.classList.remove('ws-hidden');
     iframe.src = target;
@@ -121,12 +128,16 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
     document.body.classList.add('ws-lock');
     pushPanelState();
 
-    setTimeout(() => closeBtn.focus({ preventScroll: true }), 100);
+    focusTimer = setTimeout(() => {
+      focusTimer = null;
+      closeBtn.focus({ preventScroll: true });
+    }, 100);
   }
 
-  /** Visual close only. Callers decide whether history is popped. */
+  /** Visual close only. Callers decide whether history is popped. Callable
+   *  even after destroyed has been set, so destroy() can route through it. */
   function hide(): void {
-    if (!isOpen()) return;
+    if (!isShown()) return;
 
     overlay.classList.remove('ws-show');
     panel.classList.remove('ws-show');
@@ -141,7 +152,8 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
   }
 
   function close(): void {
-    if (!isOpen()) return;
+    if (destroyed) return;
+    if (!isShown()) return;
     hide();
     popPanelState();
   }
@@ -200,7 +212,20 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
       if (destroyed) return;
       destroyed = true;
 
+      // Route through the real close path first: restores focus, clears
+      // ws-lock, and pops any history entry this instance still owns. A
+      // stale destroyed instance must never later touch body classList or
+      // history state again (see close(), which is now gated on destroyed).
+      if (isShown()) {
+        hide();
+        popPanelState();
+      }
+
       if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = null;
+      if (focusTimer) clearTimeout(focusTimer);
+      focusTimer = null;
+
       overlay.removeEventListener('click', onOverlayClick);
       closeBtn.removeEventListener('click', onCloseClick);
       iframe.removeEventListener('load', onIframeLoad);
@@ -208,7 +233,6 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
       document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
 
-      document.body.classList.remove('ws-lock');
       overlay.remove();
       panel.remove();
       releaseStyles();

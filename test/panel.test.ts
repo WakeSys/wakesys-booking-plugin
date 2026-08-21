@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createPanel } from '../src/core/panel';
-import { resetDepth } from '../src/core/history';
+import { resetDepth, getDepth } from '../src/core/history';
 
 const URL_A = 'https://wakesys.app/park-a/booking';
 const URL_B = 'https://wakesys.app/park-b/booking';
@@ -78,15 +78,33 @@ describe('open / close', () => {
     expect(history.back).toHaveBeenCalledTimes(1);
   });
 
+  it('reapplies inert to the panel on close', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    panel.open();
+    expect(document.querySelector('.ws-panel')!.hasAttribute('inert')).toBe(false);
+
+    panel.close();
+    expect(document.querySelector('.ws-panel')!.hasAttribute('inert')).toBe(true);
+  });
+
   it('restores focus to the previously focused element', () => {
+    vi.useFakeTimers();
     const trigger = document.createElement('button');
     document.body.appendChild(trigger);
     trigger.focus();
 
     panel = createPanel({ bookingUrl: URL_A });
     panel.open();
+
+    // Let the panel's own post-open focus move actually happen first, so
+    // closing genuinely has to move focus back rather than merely leaving
+    // it where it already was.
+    vi.advanceTimersByTime(150);
+    expect(document.activeElement).toBe(document.querySelector('.ws-close'));
+
     panel.close();
     expect(document.activeElement).toBe(trigger);
+    vi.useRealTimers();
   });
 });
 
@@ -134,6 +152,23 @@ describe('resize', () => {
     expect(panel.isOpen()).toBe(false);
     expect(document.body.classList.contains('ws-lock')).toBe(false);
     vi.useRealTimers();
+  });
+});
+
+describe('popstate', () => {
+  it('hides without calling history.back when the browser pops the entry', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    panel.open();
+    expect(getDepth()).toBe(1);
+
+    // Simulate the browser's own back navigation: the entry is already gone
+    // by the time this fires, so the handler must not navigate again.
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+
+    expect(panel.isOpen()).toBe(false);
+    expect(document.body.classList.contains('ws-lock')).toBe(false);
+    expect(getDepth()).toBe(0);
+    expect(history.back).not.toHaveBeenCalled();
   });
 });
 
@@ -186,5 +221,75 @@ describe('destroy', () => {
     expect(document.head.querySelector('style[data-wakesys-booking]')).toBeNull();
     expect(document.body.classList.contains('ws-lock')).toBe(false);
     expect(() => panel.destroy()).not.toThrow();
+  });
+
+  it('does not double-release the shared stylesheet when destroyed twice', () => {
+    // The real risk isn't destroy() throwing (a Math.max clamp in styles.ts
+    // would hide that either way) — it's a second, unguarded teardown
+    // decrementing the shared style refcount again and pulling the
+    // stylesheet out from under a sibling instance that is still mounted.
+    const a = createPanel({ bookingUrl: URL_A });
+    const b = createPanel({ bookingUrl: URL_A });
+    panel = b; // let afterEach clean up b
+
+    a.destroy();
+    expect(document.head.querySelector('style[data-wakesys-booking]')).not.toBeNull();
+
+    a.destroy(); // idempotent: must not release a second time
+    expect(document.head.querySelector('style[data-wakesys-booking]')).not.toBeNull();
+
+    b.destroy();
+    expect(document.head.querySelector('style[data-wakesys-booking]')).toBeNull();
+  });
+
+  it('removes the iframe load listener so a stale load event no longer touches panel state', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    const iframeEl = document.querySelector('iframe')!;
+    const spinnerEl = document.querySelector('.ws-spinner')!;
+    panel.destroy();
+
+    // The node was detached by destroy(), but the reference is still live in
+    // this scope, so dispatching directly on it proves whether the 'load'
+    // listener itself was removed (as opposed to merely being unreachable).
+    iframeEl.dispatchEvent(new Event('load'));
+    expect(spinnerEl.classList.contains('ws-hidden')).toBe(false);
+  });
+
+  it('pops its own history entry and restores focus when destroyed while open', () => {
+    const trigger = document.createElement('button');
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    panel = createPanel({ bookingUrl: URL_A });
+    panel.open();
+    expect(getDepth()).toBe(1);
+
+    panel.destroy();
+
+    expect(getDepth()).toBe(0);
+    expect(document.body.classList.contains('ws-lock')).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('makes close() and isOpen() no-ops on a destroyed instance, without touching a live sibling', () => {
+    const a = createPanel({ bookingUrl: URL_A });
+    const b = createPanel({ bookingUrl: URL_A });
+    panel = b; // let afterEach clean up b
+
+    a.open();
+    a.destroy(); // destroys while open: pops its own entry via the fixed teardown
+
+    b.open();
+    expect(document.body.classList.contains('ws-lock')).toBe(true);
+    const depthBeforeStaleClose = getDepth();
+    const backCallsBeforeStaleClose = (history.back as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    a.close(); // stale handle: must be a complete no-op
+
+    expect(a.isOpen()).toBe(false);
+    expect(b.isOpen()).toBe(true);
+    expect(document.body.classList.contains('ws-lock')).toBe(true);
+    expect(getDepth()).toBe(depthBeforeStaleClose);
+    expect(history.back).toHaveBeenCalledTimes(backCallsBeforeStaleClose);
   });
 });
