@@ -292,4 +292,98 @@ describe('destroy', () => {
     expect(getDepth()).toBe(depthBeforeStaleClose);
     expect(history.back).toHaveBeenCalledTimes(backCallsBeforeStaleClose);
   });
+
+  it('clears the pending post-open focus timer, so it cannot steal focus after teardown (m1)', () => {
+    vi.useFakeTimers();
+    panel = createPanel({ bookingUrl: URL_A });
+    panel.open();
+
+    const closeBtnEl = document.querySelector('.ws-close')! as HTMLElement;
+    // jsdom no-ops .focus() on an element once it's disconnected from the
+    // document, so a leaked callback wouldn't observably move
+    // document.activeElement here — spy on the call itself instead.
+    const focusSpy = vi.spyOn(closeBtnEl, 'focus');
+
+    // Destroy before the 100ms post-open focus-the-close-button timer fires.
+    panel.destroy();
+
+    // Advance well past the timeout. If it wasn't cleared, the leaked
+    // callback still fires against the torn-down close button.
+    vi.advanceTimersByTime(200);
+
+    expect(focusSpy).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('detaches every listener it attached, by the exact same function reference (no silent no-op leaks)', () => {
+    type Entry = { target: EventTarget; type: string; listener: EventListenerOrEventListenerObject };
+    const added: Entry[] = [];
+    const removed: Entry[] = [];
+
+    // window.addEventListener/removeEventListener are own properties in
+    // jsdom (not inherited via EventTarget.prototype), so it needs its own
+    // spy; document and plain Elements go through the prototype. Capture the
+    // real implementations *before* installing any spy, since spyOn replaces
+    // the property in place and a later read would see the spy, not the
+    // original (causing infinite recursion through the mock).
+    const protoAdd = EventTarget.prototype.addEventListener;
+    const protoRemove = EventTarget.prototype.removeEventListener;
+    const windowAdd = window.addEventListener.bind(window);
+    const windowRemove = window.removeEventListener.bind(window);
+
+    function recordingAdd(record: Entry[], original: typeof protoAdd) {
+      return function (
+        this: EventTarget,
+        type: string,
+        listener: EventListenerOrEventListenerObject | null,
+        options?: boolean | AddEventListenerOptions,
+      ) {
+        if (listener) record.push({ target: this, type, listener });
+        return original.call(this, type, listener, options);
+      };
+    }
+    function recordingRemove(record: Entry[], original: typeof protoRemove) {
+      return function (
+        this: EventTarget,
+        type: string,
+        listener: EventListenerOrEventListenerObject | null,
+        options?: boolean | EventListenerOptions,
+      ) {
+        if (listener) record.push({ target: this, type, listener });
+        return original.call(this, type, listener, options);
+      };
+    }
+
+    vi.spyOn(EventTarget.prototype, 'addEventListener').mockImplementation(recordingAdd(added, protoAdd));
+    vi.spyOn(EventTarget.prototype, 'removeEventListener').mockImplementation(recordingRemove(removed, protoRemove));
+    vi.spyOn(window, 'addEventListener').mockImplementation(recordingAdd(added, windowAdd));
+    vi.spyOn(window, 'removeEventListener').mockImplementation(recordingRemove(removed, windowRemove));
+
+    panel = createPanel({ bookingUrl: URL_A });
+
+    const overlayEl = document.querySelector('.ws-overlay')!;
+    const closeBtnEl = document.querySelector('.ws-close')!;
+    const iframeEl = document.querySelector('iframe')!;
+
+    const expectedTargets: [EventTarget, string][] = [
+      [window, 'popstate'],
+      [window, 'resize'],
+      [document, 'keydown'],
+      [overlayEl, 'click'],
+      [closeBtnEl, 'click'],
+      [iframeEl, 'load'],
+    ];
+
+    panel.destroy();
+
+    for (const [target, type] of expectedTargets) {
+      const addedEntry = added.find((e) => e.target === target && e.type === type);
+      expect(addedEntry, `expected an addEventListener('${type}') call on the target`).toBeDefined();
+
+      const removedMatch = removed.some(
+        (e) => e.target === target && e.type === type && e.listener === addedEntry!.listener,
+      );
+      expect(removedMatch, `expected removeEventListener('${type}') with the same listener reference`).toBe(true);
+    }
+  });
 });
