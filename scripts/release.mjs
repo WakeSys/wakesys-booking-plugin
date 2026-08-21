@@ -63,17 +63,21 @@ if (skipNpm) {
 // exact pin must use the tag name itself (v-prefixed) — `@1.0.0` 404s
 // against a tag named `v1.0.0`.
 const url = `https://cdn.jsdelivr.net/gh/WakeSys/wakesys-booking-plugin@v${version}/dist/plugin.js`;
-for (let i = 1; i <= 10; i++) {
+// jsDelivr needs a few minutes to resolve a freshly pushed tag for the first
+// time; 60s was not enough for either of the first two releases.
+for (let i = 1; i <= 24; i++) {
   const res = await fetch(url);
   if (res.ok && (await res.text()).includes(`v${version}`)) {
     console.log(`CDN verified: ${url}`);
     process.exit(0);
   }
-  console.log(`CDN not ready (attempt ${i}/10), retrying...`);
-  await new Promise((r) => setTimeout(r, 6000));
+  console.log(`CDN not ready (attempt ${i}/24), retrying in 15s...`);
+  await new Promise((r) => setTimeout(r, 15000));
 }
 throw new Error(
   `CDN did not serve v${version} at ${url}. The tag pushed successfully, so check\n` +
-  `the URL shape rather than the push: the org segment is case-sensitive and the\n` +
-  `version segment must match the tag name.`,
+  `the URL shape or propagation rather than the push. The org segment is\n` +
+  `case-sensitive and the version segment must match the tag name; if both look\n` +
+  `right, jsDelivr may simply still be resolving the new tag — re-check the URL\n` +
+  `manually before assuming the release failed.`,
 );
