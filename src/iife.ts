@@ -137,6 +137,7 @@ function boot(): BookingPanelInstance | null {
     isOpen: () => panel.isOpen(),
     setBookingUrl: (url: string) => panel.setBookingUrl(url),
     getBookingUrl: () => panel.getBookingUrl(),
+    getNoticeSlot: () => panel.getNoticeSlot(),
     destroy: () => {
       if (destroyed) return;
       destroyed = true;

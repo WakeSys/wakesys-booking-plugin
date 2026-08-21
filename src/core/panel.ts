@@ -49,6 +49,12 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
 
   header.append(titleEl, closeBtn);
 
+  // Empty on purpose: no CSS rule targets .ws-notice, so an untouched slot
+  // has zero size and no visual presence. A caller (e.g. the React adapter's
+  // renderNotice) fills it; the package has no opinion on its contents.
+  const notice = document.createElement('div');
+  notice.className = 'ws-notice';
+
   const body = document.createElement('div');
   body.className = 'ws-body';
 
@@ -74,7 +80,7 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
   iframe.addEventListener('load', onIframeLoad);
 
   body.append(spinner, iframe);
-  panel.append(header, body);
+  panel.append(header, notice, body);
 
   // Mounted on body: position:fixed resolves against a transformed, filtered,
   // or contained ancestor rather than the viewport, and host themes routinely
@@ -209,6 +215,9 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
     },
     getBookingUrl() {
       return bookingUrl;
+    },
+    getNoticeSlot() {
+      return notice;
     },
     destroy() {
       if (destroyed) return;

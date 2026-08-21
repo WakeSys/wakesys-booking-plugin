@@ -13,6 +13,7 @@ import {
   useState,
   useSyncExternalStore
 } from "react";
+import { createPortal } from "react-dom";
 
 // src/core/allowlist.ts
 var ALLOWED_ORIGINS = [
@@ -34,7 +35,10 @@ function normalizeBreakpoint(value) {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_MOBILE_BREAKPOINT;
 }
 function isMobile(breakpoint) {
-  return window.innerWidth < breakpoint;
+  if (window.innerWidth < breakpoint) return true;
+  const isCoarsePointer = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  if (!isCoarsePointer) return false;
+  return Math.min(window.innerWidth, window.innerHeight) < breakpoint;
 }
 function mobileMediaQuery(breakpoint) {
   return `(max-width:${breakpoint - 1}px)`;
@@ -149,6 +153,8 @@ function createPanel(config) {
   closeBtn.setAttribute("aria-label", `Close ${title.toLowerCase()}`);
   closeBtn.innerHTML = CLOSE_ICON;
   header.append(titleEl, closeBtn);
+  const notice = document.createElement("div");
+  notice.className = "ws-notice";
   const body = document.createElement("div");
   body.className = "ws-body";
   const spinner = document.createElement("div");
@@ -169,7 +175,7 @@ function createPanel(config) {
   const onIframeLoad = () => spinner.classList.add("ws-hidden");
   iframe.addEventListener("load", onIframeLoad);
   body.append(spinner, iframe);
-  panel.append(header, body);
+  panel.append(header, notice, body);
   document.body.append(overlay, panel);
   function safeOrigin(url) {
     try {
@@ -277,6 +283,9 @@ function createPanel(config) {
     getBookingUrl() {
       return bookingUrl;
     },
+    getNoticeSlot() {
+      return notice;
+    },
     destroy() {
       if (destroyed) return;
       destroyed = true;
@@ -321,7 +330,7 @@ function appendOffer(url, offer) {
 }
 
 // src/react.tsx
-import { Fragment, jsx } from "react/jsx-runtime";
+import { Fragment, jsxs } from "react/jsx-runtime";
 var instance = null;
 var moduleIsOpen = false;
 var listeners = /* @__PURE__ */ new Set();
@@ -343,9 +352,11 @@ function BookingPanelProvider({
   mobileBreakpoint,
   position,
   title,
-  renderMobileFallback
+  renderMobileFallback,
+  renderNotice
 }) {
   const [pendingUrl, setPendingUrl] = useState(null);
+  const [noticeSlot, setNoticeSlot] = useState(null);
   const fallbackRef = useRef(renderMobileFallback);
   const panelRef = useRef(null);
   useEffect(() => {
@@ -366,26 +377,30 @@ function BookingPanelProvider({
     });
     instance = panel;
     panelRef.current = panel;
+    setNoticeSlot(panel.getNoticeSlot());
     return () => {
       panel.destroy();
       if (instance === panel) instance = null;
       if (panelRef.current === panel) panelRef.current = null;
       setModuleIsOpen(false);
+      setNoticeSlot(null);
     };
   }, [mobileBreakpoint, position, title]);
   useEffect(() => {
     var _a;
     (_a = panelRef.current) == null ? void 0 : _a.setBookingUrl(bookingUrl);
   }, [bookingUrl]);
-  if (!pendingUrl || !renderMobileFallback) return null;
-  return /* @__PURE__ */ jsx(Fragment, { children: renderMobileFallback({
-    url: pendingUrl,
-    confirm: () => {
-      window.open(pendingUrl, "_blank", "noopener");
-      setPendingUrl(null);
-    },
-    cancel: () => setPendingUrl(null)
-  }) });
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    noticeSlot && renderNotice && createPortal(renderNotice(), noticeSlot),
+    pendingUrl && renderMobileFallback && renderMobileFallback({
+      url: pendingUrl,
+      confirm: () => {
+        window.open(pendingUrl, "_blank", "noopener");
+        setPendingUrl(null);
+      },
+      cancel: () => setPendingUrl(null)
+    })
+  ] });
 }
 function useBookingPanel() {
   const isOpen = useSyncExternalStore(subscribe, getIsOpen, getServerSnapshot);

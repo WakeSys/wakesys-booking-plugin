@@ -25,7 +25,10 @@ function normalizeBreakpoint(value) {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_MOBILE_BREAKPOINT;
 }
 function isMobile(breakpoint) {
-  return window.innerWidth < breakpoint;
+  if (window.innerWidth < breakpoint) return true;
+  const isCoarsePointer = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  if (!isCoarsePointer) return false;
+  return Math.min(window.innerWidth, window.innerHeight) < breakpoint;
 }
 function mobileMediaQuery(breakpoint) {
   return `(max-width:${breakpoint - 1}px)`;
@@ -140,6 +143,8 @@ function createPanel(config) {
   closeBtn.setAttribute("aria-label", `Close ${title.toLowerCase()}`);
   closeBtn.innerHTML = CLOSE_ICON;
   header.append(titleEl, closeBtn);
+  const notice = document.createElement("div");
+  notice.className = "ws-notice";
   const body = document.createElement("div");
   body.className = "ws-body";
   const spinner = document.createElement("div");
@@ -160,7 +165,7 @@ function createPanel(config) {
   const onIframeLoad = () => spinner.classList.add("ws-hidden");
   iframe.addEventListener("load", onIframeLoad);
   body.append(spinner, iframe);
-  panel.append(header, body);
+  panel.append(header, notice, body);
   document.body.append(overlay, panel);
   function safeOrigin(url) {
     try {
@@ -267,6 +272,9 @@ function createPanel(config) {
     },
     getBookingUrl() {
       return bookingUrl;
+    },
+    getNoticeSlot() {
+      return notice;
     },
     destroy() {
       if (destroyed) return;

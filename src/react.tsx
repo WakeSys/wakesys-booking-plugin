@@ -1,6 +1,7 @@
 import {
   useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { createBookingPanel } from './core';
 import { appendOffer } from './core/offer';
 import type { BookingPanelInstance } from './core/types';
@@ -49,6 +50,12 @@ export interface BookingPanelProviderProps {
   title?: string;
   /** Rendered instead of opening a new tab when below the breakpoint. */
   renderMobileFallback?: (args: MobileFallbackArgs) => ReactNode;
+  /**
+   * Portaled into the panel's notice slot, between the header and the
+   * iframe (e.g. a demo-mode banner). Absent renders nothing — the package
+   * has no opinion on what, if anything, goes there.
+   */
+  renderNotice?: () => ReactNode;
 }
 
 export function BookingPanelProvider({
@@ -57,8 +64,10 @@ export function BookingPanelProvider({
   position,
   title,
   renderMobileFallback,
+  renderNotice,
 }: BookingPanelProviderProps) {
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  const [noticeSlot, setNoticeSlot] = useState<HTMLElement | null>(null);
   const fallbackRef = useRef(renderMobileFallback);
   // Panel this specific provider instance created, so the bookingUrl-sync
   // effect below updates *this* panel even if a second provider is mounted
@@ -84,12 +93,14 @@ export function BookingPanelProvider({
     });
     instance = panel;
     panelRef.current = panel;
+    setNoticeSlot(panel.getNoticeSlot());
 
     return () => {
       panel.destroy();
       if (instance === panel) instance = null;
       if (panelRef.current === panel) panelRef.current = null;
       setModuleIsOpen(false);
+      setNoticeSlot(null);
     };
     // Recreated only on structural config change; URL updates go through the
     // effect below so open panels are not torn down mid-booking.
@@ -100,11 +111,10 @@ export function BookingPanelProvider({
     panelRef.current?.setBookingUrl(bookingUrl);
   }, [bookingUrl]);
 
-  if (!pendingUrl || !renderMobileFallback) return null;
-
   return (
     <>
-      {renderMobileFallback({
+      {noticeSlot && renderNotice && createPortal(renderNotice(), noticeSlot)}
+      {pendingUrl && renderMobileFallback && renderMobileFallback({
         url: pendingUrl,
         confirm: () => {
           window.open(pendingUrl, '_blank', 'noopener');

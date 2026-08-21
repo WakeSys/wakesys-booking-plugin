@@ -480,3 +480,46 @@ describe('onOpenChange', () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 });
+
+describe('getNoticeSlot', () => {
+  it('returns an element sitting between the header and the body', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    const notice = panel.getNoticeSlot();
+
+    expect(notice.className).toBe('ws-notice');
+    expect(notice.parentElement).toBe(document.querySelector('.ws-panel'));
+    expect(notice.previousElementSibling?.className).toBe('ws-header');
+    expect(notice.nextElementSibling?.className).toBe('ws-body');
+  });
+
+  it('is empty and carries no inline styling when untouched', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    const notice = panel.getNoticeSlot();
+
+    expect(notice.childElementCount).toBe(0);
+    expect(notice.textContent).toBe('');
+    expect(notice.getAttribute('style')).toBeNull();
+  });
+
+  it('has no CSS rule of its own, so an untouched slot has no visible chrome', () => {
+    // A bare <div> with no matching CSS rule already has zero size and no
+    // border/padding/background by default; asserting the stylesheet has no
+    // .ws-notice rule at all is what actually pins that down against a
+    // future edit that gives the slot default visual chrome.
+    panel = createPanel({ bookingUrl: URL_A });
+    const css = document.head.querySelector('style[data-wakesys-booking]')!.textContent ?? '';
+    expect(css).not.toContain('.ws-notice');
+  });
+
+  it('returns the same element on repeated calls', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    expect(panel.getNoticeSlot()).toBe(panel.getNoticeSlot());
+  });
+
+  it('is removed along with the rest of the panel on destroy', () => {
+    panel = createPanel({ bookingUrl: URL_A });
+    const notice = panel.getNoticeSlot();
+    panel.destroy();
+    expect(document.body.contains(notice)).toBe(false);
+  });
+});

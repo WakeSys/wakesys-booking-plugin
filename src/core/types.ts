@@ -30,6 +30,14 @@ export interface BookingPanelInstance {
   setBookingUrl(url: string): void;
   /** The current default URL, for callers that need to append an offer. */
   getBookingUrl(): string;
+  /**
+   * An empty container between the header and the iframe, for a caller to
+   * fill with its own content (e.g. a demo-mode notice). Carries no styling
+   * of its own beyond the `ws-notice` class, so an untouched slot is
+   * invisible: no padding, no border, no height. The package has no opinion
+   * on what goes in it.
+   */
+  getNoticeSlot(): HTMLElement;
   /** Removes all DOM and listeners. Safe to call twice. */
   destroy(): void;
 }

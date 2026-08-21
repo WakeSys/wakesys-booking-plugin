@@ -337,3 +337,43 @@ describe('renderMobileFallback', () => {
     expect(openSpy).toHaveBeenCalledWith(URL_A, '_blank', 'noopener');
   });
 });
+
+describe('renderNotice', () => {
+  it('portals its content into the panel notice slot', () => {
+    render(
+      <BookingPanelProvider
+        bookingUrl={URL_A}
+        renderNotice={() => <span>Demo Mode — test card 4242</span>}
+      />,
+    );
+    const notice = document.querySelector('.ws-notice')!;
+    expect(notice.textContent).toBe('Demo Mode — test card 4242');
+    expect(screen.getByText('Demo Mode — test card 4242').closest('.ws-notice')).toBe(notice);
+  });
+
+  it('renders nothing into the slot when renderNotice is absent', () => {
+    render(<BookingPanelProvider bookingUrl={URL_A} />);
+    const notice = document.querySelector('.ws-notice')!;
+    expect(notice).not.toBeNull();
+    expect(notice.childElementCount).toBe(0);
+    expect(notice.textContent).toBe('');
+  });
+
+  it('is placed between the header and the iframe body, and the empty slot is visually inert', () => {
+    render(<BookingPanelProvider bookingUrl={URL_A} />);
+    const notice = document.querySelector('.ws-notice')!;
+    expect(notice.previousElementSibling?.className).toBe('ws-header');
+    expect(notice.nextElementSibling?.className).toBe('ws-body');
+    expect(notice.getAttribute('style')).toBeNull();
+  });
+
+  it('removes the portaled content when the provider unmounts', () => {
+    const { unmount } = render(
+      <BookingPanelProvider bookingUrl={URL_A} renderNotice={() => <span>Demo Mode</span>} />,
+    );
+    expect(screen.getByText('Demo Mode')).toBeTruthy();
+    unmount();
+    expect(document.querySelector('.ws-panel')).toBeNull();
+    expect(screen.queryByText('Demo Mode')).toBeNull();
+  });
+});

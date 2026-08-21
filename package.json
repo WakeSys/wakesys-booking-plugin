@@ -28,6 +28,7 @@
     "@testing-library/dom": "^10",
     "@testing-library/react": "^16",
     "@types/react": "^19",
+    "@types/react-dom": "^19",
     "esbuild": "^0.28",
     "jsdom": "^25",
     "react": "^19",
