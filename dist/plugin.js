@@ -1,5 +1,5 @@
 /**
- * wakesys Booking Plugin v1.0.0
+ * wakesys Booking Plugin v1.0.1
  * Copyright (c) 2026 wakesys s.à.r.l.
  * Licensed under GPL-3.0
  * https://github.com/wakesys/wakesys-booking-plugin
