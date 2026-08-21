@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { bootFromDom } from '../src/iife';
 import { resetDepth } from '../src/core/history';
+import * as core from '../src/core';
 
 const URL_A = 'https://wakesys.app/park-a/booking';
 
@@ -122,5 +123,129 @@ describe('attribute parsing', () => {
     mountContainer({ 'data-wakesys-url': URL_A, 'data-wakesys-position': 'top' });
     instance = bootFromDom();
     expect(document.head.querySelector('style')!.textContent).toContain('right:0');
+  });
+
+  // The CSS-based assertions above pass even if iife.ts's own normalization is
+  // deleted outright, because core/panel.ts normalizes the same config value a
+  // second time before building that CSS. These pin the check to the iife
+  // layer specifically, by inspecting the config object handed to the core
+  // factory rather than its downstream effect.
+  it('hands the core factory a normalized breakpoint for malformed input', () => {
+    const spy = vi.spyOn(core, 'createBookingPanel');
+    mountContainer({ 'data-wakesys-url': URL_A, 'data-wakesys-mobile': 'wide' });
+    instance = bootFromDom();
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ mobileBreakpoint: 768 }));
+  });
+
+  it('hands the core factory a normalized position for invalid input', () => {
+    const spy = vi.spyOn(core, 'createBookingPanel');
+    mountContainer({ 'data-wakesys-url': URL_A, 'data-wakesys-position': 'top' });
+    instance = bootFromDom();
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ position: 'right' }));
+  });
+});
+
+describe('offer url building', () => {
+  it('keeps the offer query ahead of an existing fragment on the booking url', () => {
+    mountContainer({ 'data-wakesys-url': `${URL_A}#step2` });
+    const btn = document.createElement('button');
+    btn.setAttribute('data-wakesys-book', 'aqua');
+    document.body.appendChild(btn);
+
+    instance = bootFromDom();
+    btn.click();
+    expect(document.querySelector('iframe')!.getAttribute('src'))
+      .toBe(`${URL_A}?offer=aqua#step2`);
+  });
+});
+
+describe('trigger attribute removal', () => {
+  it('stops hijacking a trigger once its data-wakesys-book attribute is removed', () => {
+    mountContainer({ 'data-wakesys-url': URL_A });
+    const link = document.createElement('a');
+    link.href = 'https://example.com/other';
+    link.setAttribute('data-wakesys-book', 'x');
+    document.body.appendChild(link);
+
+    instance = bootFromDom();
+    link.removeAttribute('data-wakesys-book');
+
+    const e = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    link.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('still opens the default url when data-wakesys-book is present but empty', () => {
+    mountContainer({ 'data-wakesys-url': URL_A });
+    const btn = document.createElement('button');
+    btn.setAttribute('data-wakesys-book', '');
+    document.body.appendChild(btn);
+
+    instance = bootFromDom();
+    btn.click();
+    expect(document.querySelector('iframe')!.getAttribute('src')).toBe(URL_A);
+  });
+});
+
+describe('boot failure', () => {
+  it('installs the no-op global and does not throw when the core factory throws', () => {
+    mountContainer({ 'data-wakesys-url': URL_A });
+    const realCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      if (tag === 'iframe') throw new Error('blocked by host CSP');
+      return realCreateElement(tag);
+    });
+
+    expect(() => { instance = bootFromDom(); }).not.toThrow();
+    expect(instance).toBeNull();
+    expect(() => window.BookingPanel!.open()).not.toThrow();
+  });
+});
+
+describe('teardown', () => {
+  it('destroy() releases click listeners so a bound link behaves normally again', () => {
+    mountContainer({ 'data-wakesys-url': URL_A });
+    const link = document.createElement('a');
+    link.href = URL_A;
+    document.body.appendChild(link);
+
+    instance = bootFromDom();
+    instance!.destroy();
+
+    const e = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    link.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('destroy() stops binding elements added to the DOM after teardown', async () => {
+    mountContainer({ 'data-wakesys-url': URL_A });
+    instance = bootFromDom();
+    instance!.destroy();
+
+    const btn = document.createElement('button');
+    btn.setAttribute('data-wakesys-book', '');
+    document.body.appendChild(btn);
+
+    // Give a still-connected MutationObserver's 100ms debounce time to fire,
+    // if teardown failed to disconnect it.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const e = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    btn.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('re-binds elements on a fresh boot after a previous destroy', () => {
+    mountContainer({ 'data-wakesys-url': URL_A });
+    const btn = document.createElement('button');
+    btn.setAttribute('data-wakesys-book', '');
+    document.body.appendChild(btn);
+
+    const first = bootFromDom()!;
+    first.destroy();
+
+    instance = bootFromDom();
+    btn.click();
+    expect(instance!.isOpen()).toBe(true);
   });
 });
