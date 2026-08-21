@@ -2,6 +2,14 @@
 
 ## 1.0.1
 
+### Documentation
+- Corrected the offer-deep-link docs. The plugin appends `?offer=<slug>` to the
+  booking URL, but the wakesys booking app does not read that parameter — it
+  deep-links by `offerId` + `productId` on a different route — so a customer
+  following the previous instructions landed on the normal first step. The
+  behaviour is unchanged and correct; only the claim about what it achieves was
+  wrong. Documented the working alternative.
+
 ### Fixed
 - Every documented CDN URL returned 404. jsDelivr's `/gh/` endpoint is
   case-sensitive on the org segment (`WakeSys`, not `wakesys`), and an exact

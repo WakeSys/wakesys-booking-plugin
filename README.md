@@ -103,7 +103,7 @@ An invalid `bookingUrl` **throws** from `BookingPanelProvider` (and from `create
 | ------------- | ------------------------------------------------------------------------------ |
 | `open(url?)`  | Opens the panel, optionally with a different booking URL for this call only.  |
 | `close()`     | Closes the panel.                                                              |
-| `openOffer(offer)` | Opens the panel at `<bookingUrl>?offer=<offer>`, using whichever `bookingUrl` the mounted provider currently has. |
+| `openOffer(offer)` | Opens the panel at `<bookingUrl>?offer=<offer>`, using whichever `bookingUrl` the mounted provider currently has. Note the booking app does not currently read `?offer=` — see [Triggering](#triggering). |
 | `isOpen`      | Boolean, kept in sync with every real open/close transition — including the close button, the overlay, Escape, browser back, and the mobile-resize auto-close, not just calls made through this hook. |
 
 ## Configuration
@@ -124,11 +124,24 @@ Any element with `data-wakesys-book` opens the panel on click:
 <button data-wakesys-book>Book now</button>
 ```
 
-Give the attribute a value to open a specific offer (appended as `?offer=<slug>`):
+Giving the attribute a value appends it as `?offer=<slug>`:
 
 ```html
 <button data-wakesys-book="summer-sale">Book the summer sale</button>
 ```
+
+> **The wakesys booking app does not currently read `?offer=`.** The parameter
+> is passed through to the booking URL and ignored, so the customer lands on the
+> normal first step. To open a specific activity today, point at its full
+> booking URL instead — the booking flow deep-links by id, not by slug:
+>
+> ```html
+> <a href="https://wakesys.app/my-park/booking/email?offerId=...&productId=...">
+>   Book the aqua park
+> </a>
+> ```
+>
+> Any `wakesys.app` URL opens in the panel, so an ordinary link is enough.
 
 Links whose `href` already points at a booking page are upgraded automatically — no attribute needed:
 
