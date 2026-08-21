@@ -39,11 +39,14 @@ describe('ensureStyles / releaseStyles', () => {
     expect(sheets()).toHaveLength(0);
   });
 
-  it('never goes negative on extra releases', () => {
+  it('clamps refcount at zero, so a balanced release after extra releases still removes the sheet', () => {
     ensureStyles('.x{}');
     releaseStyles();
-    releaseStyles();
+    releaseStyles(); // extra release with no matching ensureStyles
     ensureStyles('.x{}');
     expect(sheets()).toHaveLength(1);
+
+    releaseStyles(); // balances the ensureStyles above
+    expect(sheets()).toHaveLength(0); // fails if refcount went negative and never got back to 0
   });
 });
