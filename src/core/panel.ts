@@ -127,6 +127,7 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
     panel.removeAttribute('inert');
     document.body.classList.add('ws-lock');
     pushPanelState();
+    config.onOpenChange?.(true);
 
     focusTimer = setTimeout(() => {
       focusTimer = null;
@@ -144,6 +145,7 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
     panel.setAttribute('inert', '');
     document.body.classList.remove('ws-lock');
     iframe.removeAttribute('src');
+    config.onOpenChange?.(false);
 
     if (lastFocused && document.contains(lastFocused)) {
       lastFocused.focus({ preventScroll: true });

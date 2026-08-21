@@ -8,13 +8,22 @@ import type { BookingPanelInstance } from './core/types';
  * Module-level store rather than context: the provider commonly renders as a
  * later sibling of the buttons that open it, not as their ancestor.
  * One panel instance per application, matching the vanilla plugin.
+ *
+ * `isOpen` is published as the useSyncExternalStore snapshot itself (rather
+ * than read from mutable module state during render), driven by the panel's
+ * onOpenChange callback so it stays true for every real transition -
+ * including ones that bypass the hook entirely, like the close button, the
+ * overlay, Escape, browser back, and the mobile-resize auto-close. Reading
+ * it as the snapshot (instead of computing it mid-render from `instance`)
+ * is also what prevents two simultaneously-rendered consumers from tearing.
  */
 let instance: BookingPanelInstance | null = null;
-let version = 0;
+let moduleIsOpen = false;
 const listeners = new Set<() => void>();
 
-function emit() {
-  version += 1;
+function setModuleIsOpen(next: boolean) {
+  if (moduleIsOpen === next) return;
+  moduleIsOpen = next;
   listeners.forEach((l) => l());
 }
 
@@ -23,8 +32,8 @@ function subscribe(listener: () => void) {
   return () => { listeners.delete(listener); };
 }
 
-const getSnapshot = () => version;
-const getServerSnapshot = () => 0;
+const getIsOpen = () => moduleIsOpen;
+const getServerSnapshot = () => false;
 
 export interface MobileFallbackArgs {
   url: string;
@@ -50,7 +59,14 @@ export function BookingPanelProvider({
 }: BookingPanelProviderProps) {
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const fallbackRef = useRef(renderMobileFallback);
-  fallbackRef.current = renderMobileFallback;
+  // Panel this specific provider instance created, so the bookingUrl-sync
+  // effect below updates *this* panel even if a second provider is mounted
+  // and has since become the module-level `instance` the hook reads from.
+  const panelRef = useRef<BookingPanelInstance | null>(null);
+
+  useEffect(() => {
+    fallbackRef.current = renderMobileFallback;
+  }, [renderMobileFallback]);
 
   useEffect(() => {
     const panel = createBookingPanel({
@@ -63,14 +79,16 @@ export function BookingPanelProvider({
         setPendingUrl(url);
         return true;
       },
+      onOpenChange: setModuleIsOpen,
     });
     instance = panel;
-    emit();
+    panelRef.current = panel;
 
     return () => {
       panel.destroy();
       if (instance === panel) instance = null;
-      emit();
+      if (panelRef.current === panel) panelRef.current = null;
+      setModuleIsOpen(false);
     };
     // Recreated only on structural config change; URL updates go through the
     // effect below so open panels are not torn down mid-booking.
@@ -78,7 +96,7 @@ export function BookingPanelProvider({
   }, [mobileBreakpoint, position, title]);
 
   useEffect(() => {
-    instance?.setBookingUrl(bookingUrl);
+    panelRef.current?.setBookingUrl(bookingUrl);
   }, [bookingUrl]);
 
   if (!pendingUrl || !renderMobileFallback) return null;
@@ -97,19 +115,32 @@ export function BookingPanelProvider({
   );
 }
 
-export function useBookingPanel() {
-  useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+/**
+ * Splits off a URL fragment before appending ?offer=, then re-appends it, so
+ * e.g. https://wakesys.app/park-a/booking#step2 + offer becomes
+ * .../booking?offer=X#step2 rather than .../booking#step2?offer=X (a query
+ * string after a fragment is part of the fragment, so the offer would never
+ * reach the server). Same approach as resolveUrl in src/iife.ts.
+ */
+function appendOffer(url: string, offer: string): string {
+  const hashIndex = url.indexOf('#');
+  const base = hashIndex === -1 ? url : url.slice(0, hashIndex);
+  const hash = hashIndex === -1 ? '' : url.slice(hashIndex);
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}offer=${encodeURIComponent(offer)}${hash}`;
+}
 
-  const open = useCallback((url?: string) => { instance?.open(url); emit(); }, []);
-  const close = useCallback(() => { instance?.close(); emit(); }, []);
+export function useBookingPanel() {
+  const isOpen = useSyncExternalStore(subscribe, getIsOpen, getServerSnapshot);
+
+  const open = useCallback((url?: string) => { instance?.open(url); }, []);
+  const close = useCallback(() => { instance?.close(); }, []);
   /** Appends ?offer= to whichever bookingUrl the mounted provider is using. */
   const openOffer = useCallback((offer: string) => {
     const base = instance?.getBookingUrl();
     if (!base) return;
-    const sep = base.includes('?') ? '&' : '?';
-    instance?.open(`${base}${sep}offer=${encodeURIComponent(offer)}`);
+    instance?.open(appendOffer(base, offer));
   }, []);
-  const isOpen = instance?.isOpen() ?? false;
 
   return { open, close, openOffer, isOpen };
 }

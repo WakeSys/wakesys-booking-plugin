@@ -387,3 +387,96 @@ describe('destroy', () => {
     }
   });
 });
+
+describe('onOpenChange', () => {
+  it('fires true on open and false on close()', () => {
+    const onOpenChange = vi.fn();
+    panel = createPanel({ bookingUrl: URL_A, onOpenChange });
+
+    panel.open();
+    expect(onOpenChange).toHaveBeenLastCalledWith(true);
+
+    onOpenChange.mockClear();
+    panel.close();
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('fires false when closed via the close button', () => {
+    const onOpenChange = vi.fn();
+    panel = createPanel({ bookingUrl: URL_A, onOpenChange });
+    panel.open();
+    onOpenChange.mockClear();
+
+    (document.querySelector('.ws-close') as HTMLElement).click();
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('fires false when closed via the overlay', () => {
+    const onOpenChange = vi.fn();
+    panel = createPanel({ bookingUrl: URL_A, onOpenChange });
+    panel.open();
+    onOpenChange.mockClear();
+
+    (document.querySelector('.ws-overlay') as HTMLElement).click();
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('fires false when closed via Escape', () => {
+    const onOpenChange = vi.fn();
+    panel = createPanel({ bookingUrl: URL_A, onOpenChange });
+    panel.open();
+    onOpenChange.mockClear();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('fires false when closed via browser back (popstate)', () => {
+    const onOpenChange = vi.fn();
+    panel = createPanel({ bookingUrl: URL_A, onOpenChange });
+    panel.open();
+    onOpenChange.mockClear();
+
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('fires false when closed via the mobile-resize auto-close', () => {
+    vi.useFakeTimers();
+    const onOpenChange = vi.fn();
+    panel = createPanel({ bookingUrl: URL_A, onOpenChange });
+    panel.open();
+    onOpenChange.mockClear();
+
+    setWidth(500);
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(200);
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    vi.useRealTimers();
+  });
+
+  it('fires false when destroyed while open', () => {
+    const onOpenChange = vi.fn();
+    panel = createPanel({ bookingUrl: URL_A, onOpenChange });
+    panel.open();
+    onOpenChange.mockClear();
+
+    panel.destroy();
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('does not fire on a no-op close (already closed)', () => {
+    const onOpenChange = vi.fn();
+    panel = createPanel({ bookingUrl: URL_A, onOpenChange });
+
+    panel.close();
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});

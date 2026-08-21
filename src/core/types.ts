@@ -13,6 +13,13 @@ export interface BookingPanelConfig {
    * to window.open.
    */
   onMobileOpen?: (url: string) => boolean | void;
+  /**
+   * Called on every real open/close transition: the close button, the
+   * overlay, Escape, browser back, the mobile-resize auto-close, and
+   * destroy() while open, in addition to open()/close() calls. Not called
+   * for no-op calls (e.g. close() while already closed).
+   */
+  onOpenChange?: (isOpen: boolean) => void;
 }
 
 export interface BookingPanelInstance {
