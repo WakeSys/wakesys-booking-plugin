@@ -48,6 +48,14 @@ panel.open();
 | `getBookingUrl()` | Returns the current default URL.                                      |
 | `destroy()`       | Removes all DOM and listeners this instance created. Safe to call twice. |
 
+The package also exports a few helpers, useful if you're building a custom trigger UI:
+
+| Export                    | Description                                                          |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `isAllowedUrl(url)`         | Returns `true` if `url` points at `wakesys.app` or `staging.wakesys.app`. Validate a URL yourself before calling `open()` with it. |
+| `ALLOWED_ORIGINS`           | The `readonly string[]` of origins `isAllowedUrl` checks against.        |
+| `DEFAULT_MOBILE_BREAKPOINT` | The default `mobileBreakpoint` value, `768`.                             |
+
 React:
 
 ```tsx

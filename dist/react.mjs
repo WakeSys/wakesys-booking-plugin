@@ -301,15 +301,6 @@ function createPanel(config) {
   };
 }
 
-// src/core/offer.ts
-function appendOffer(url, offer) {
-  const hashIndex = url.indexOf("#");
-  const base = hashIndex === -1 ? url : url.slice(0, hashIndex);
-  const hash = hashIndex === -1 ? "" : url.slice(hashIndex);
-  const sep = base.includes("?") ? "&" : "?";
-  return `${base}${sep}offer=${encodeURIComponent(offer)}${hash}`;
-}
-
 // src/core/index.ts
 function createBookingPanel(config) {
   if (!isAllowedUrl(config.bookingUrl)) {
@@ -318,6 +309,15 @@ function createBookingPanel(config) {
     );
   }
   return createPanel(config);
+}
+
+// src/core/offer.ts
+function appendOffer(url, offer) {
+  const hashIndex = url.indexOf("#");
+  const base = hashIndex === -1 ? url : url.slice(0, hashIndex);
+  const hash = hashIndex === -1 ? "" : url.slice(hashIndex);
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}offer=${encodeURIComponent(offer)}${hash}`;
 }
 
 // src/react.tsx
