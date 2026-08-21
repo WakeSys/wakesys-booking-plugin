@@ -5,12 +5,29 @@
   "type": "module",
   "license": "GPL-3.0",
   "author": "wakesys s.à.r.l.",
-  "repository": { "type": "git", "url": "https://github.com/wakesys/wakesys-booking-plugin" },
-  "keywords": ["booking", "wakesys", "widget", "iframe"],
-  "files": ["dist", "src"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wakesys/wakesys-booking-plugin"
+  },
+  "keywords": [
+    "booking",
+    "wakesys",
+    "widget",
+    "iframe"
+  ],
+  "files": [
+    "dist",
+    "src"
+  ],
   "exports": {
-    ".": { "types": "./dist/core/index.d.ts", "import": "./dist/index.mjs" },
-    "./react": { "types": "./dist/react.d.ts", "import": "./dist/react.mjs" }
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/index.mjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.mjs"
+    }
   },
   "scripts": {
     "build": "node esbuild.config.mjs && tsc --emitDeclarationOnly",
@@ -19,10 +36,17 @@
     "typecheck": "tsc --noEmit",
     "release": "node scripts/release.mjs"
   },
-  "peerDependencies": { "react": ">=18", "react-dom": ">=18" },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "react-dom": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@testing-library/dom": "^10",
