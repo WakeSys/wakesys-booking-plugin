@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>wakesys-booking-plugin demo</title>
+  <style>
+    body {
+      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      max-width: 640px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+      color: #1e293b;
+    }
+    h1 { margin-bottom: 0.25rem; }
+    p.lead { color: #64748b; }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin: 2rem 0;
+    }
+    button, a.button {
+      font: inherit;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      cursor: pointer;
+      text-decoration: none;
+      color: #1e293b;
+    }
+    button[data-wakesys-book], a.button {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+  </style>
+</head>
+<body>
+  <h1>wakesys-booking-plugin demo</h1>
+  <p class="lead">Local demo page loading the built plugin directly from <code>./dist/plugin.js</code>.</p>
+
+  <div
+    id="wakesys-app"
+    data-wakesys-url="https://staging.wakesys.app/bigwave-us/booking"
+  ></div>
+
+  <div class="actions">
+    <button type="button" data-wakesys-book>Book now</button>
+    <button type="button" data-wakesys-book="summer-sale">Book the summer sale offer</button>
+    <a class="button" href="https://staging.wakesys.app/bigwave-us/booking">Book your visit (auto-upgraded link)</a>
+  </div>
+
+  <script src="./dist/plugin.js" async></script>
+</body>
+</html>
