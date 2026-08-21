@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.1
+
+### Fixed
+- Every documented CDN URL returned 404. jsDelivr's `/gh/` endpoint is
+  case-sensitive on the org segment (`WakeSys`, not `wakesys`), and an exact
+  version pin must use the tag name itself — `@1.0.0` does not resolve against
+  a tag named `v1.0.0`. The install snippet, the release script's own
+  verification URL, and its README-rewrite pattern were all corrected.
+- `npm run release` now fails fast when npm authentication is missing, instead
+  of pushing the tag first and dying at publish — which left a released tag
+  with no package behind it.
+- `npm publish --provenance` is now used only under CI. Provenance needs an
+  OIDC token from a supported runner and errors outright on a workstation.
+
+### Added
+- `npm run release -- <version> --no-npm` tags and pushes for CDN and
+  git-dependency consumers without publishing to npm.
+
 ## 1.0.0
 
 First public release. Extracted from the wakesys demos site into a standalone

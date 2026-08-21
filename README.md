@@ -14,7 +14,7 @@ Drop-in booking panel for any website. One script tag, one container.
 
 ```html
 <div id="wakesys-app" data-wakesys-url="https://wakesys.app/your-park/booking"></div>
-<script src="https://cdn.jsdelivr.net/gh/wakesys/wakesys-booking-plugin@1.0.0/dist/plugin.js" async></script>
+<script src="https://cdn.jsdelivr.net/gh/WakeSys/wakesys-booking-plugin@v1.0.0/dist/plugin.js" async></script>
 ```
 
 Pin an exact version. `@1` is available if you prefer automatic patch updates, but this widget sits in a payment flow — pinning is the safer default.

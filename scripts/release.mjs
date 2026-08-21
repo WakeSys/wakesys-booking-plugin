@@ -40,8 +40,8 @@ sh('npm test');
 
 // Keep the documented CDN URL in step with the version being tagged.
 const readme = readFileSync('README.md', 'utf-8').replace(
-  /wakesys-booking-plugin@\d+\.\d+\.\d+\//g,
-  `wakesys-booking-plugin@${version}/`,
+  /wakesys-booking-plugin@v?\d+\.\d+\.\d+\//g,
+  `wakesys-booking-plugin@v${version}/`,
 );
 writeFileSync('README.md', readme);
 
@@ -59,7 +59,10 @@ if (skipNpm) {
   sh(process.env.CI ? 'npm publish --provenance' : 'npm publish');
 }
 
-const url = `https://cdn.jsdelivr.net/gh/wakesys/wakesys-booking-plugin@${version}/dist/plugin.js`;
+// jsDelivr's /gh/ endpoint is case-sensitive on the org segment, and an
+// exact pin must use the tag name itself (v-prefixed) — `@1.0.0` 404s
+// against a tag named `v1.0.0`.
+const url = `https://cdn.jsdelivr.net/gh/WakeSys/wakesys-booking-plugin@v${version}/dist/plugin.js`;
 for (let i = 1; i <= 10; i++) {
   const res = await fetch(url);
   if (res.ok && (await res.text()).includes(`v${version}`)) {
@@ -69,4 +72,8 @@ for (let i = 1; i <= 10; i++) {
   console.log(`CDN not ready (attempt ${i}/10), retrying...`);
   await new Promise((r) => setTimeout(r, 6000));
 }
-throw new Error(`CDN did not serve v${version} — the tag may not have pushed`);
+throw new Error(
+  `CDN did not serve v${version} at ${url}. The tag pushed successfully, so check\n` +
+  `the URL shape rather than the push: the org segment is case-sensitive and the\n` +
+  `version segment must match the tag name.`,
+);
