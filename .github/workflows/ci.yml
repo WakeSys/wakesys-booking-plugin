@@ -13,8 +13,13 @@ jobs:
       - run: npm test
       - name: dist matches source
         run: npm run check-dist
-      - name: README advertises the current version
+      - name: README advertises a resolvable CDN URL for the current version
+        # Pins the whole URL shape, not just the version. jsDelivr's /gh/
+        # endpoint is case-sensitive on the org segment and resolves an exact
+        # pin against the tag name, so `wakesys/...@1.0.1` 404s where
+        # `WakeSys/...@v1.0.1` serves. Both mistakes shipped once already.
         run: |
           PKG=$(node -p "require('./package.json').version")
-          grep -q "wakesys-booking-plugin@${PKG}/" README.md \
-            || { echo "README CDN version does not match package.json ($PKG)"; exit 1; }
+          EXPECTED="cdn.jsdelivr.net/gh/WakeSys/wakesys-booking-plugin@v${PKG}/"
+          grep -q "$EXPECTED" README.md \
+            || { echo "README does not advertise $EXPECTED"; exit 1; }
