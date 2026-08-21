@@ -2,6 +2,7 @@ import {
   useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode,
 } from 'react';
 import { createBookingPanel } from './core';
+import { appendOffer } from './core/offer';
 import type { BookingPanelInstance } from './core/types';
 
 /**
@@ -113,21 +114,6 @@ export function BookingPanelProvider({
       })}
     </>
   );
-}
-
-/**
- * Splits off a URL fragment before appending ?offer=, then re-appends it, so
- * e.g. https://wakesys.app/park-a/booking#step2 + offer becomes
- * .../booking?offer=X#step2 rather than .../booking#step2?offer=X (a query
- * string after a fragment is part of the fragment, so the offer would never
- * reach the server). Same approach as resolveUrl in src/iife.ts.
- */
-function appendOffer(url: string, offer: string): string {
-  const hashIndex = url.indexOf('#');
-  const base = hashIndex === -1 ? url : url.slice(0, hashIndex);
-  const hash = hashIndex === -1 ? '' : url.slice(hashIndex);
-  const sep = base.includes('?') ? '&' : '?';
-  return `${base}${sep}offer=${encodeURIComponent(offer)}${hash}`;
 }
 
 export function useBookingPanel() {

@@ -1,6 +1,7 @@
 import { createBookingPanel } from './core';
 import { isAllowedUrl } from './core/allowlist';
 import { normalizeBreakpoint } from './core/viewport';
+import { appendOffer } from './core/offer';
 import type { BookingPanelInstance } from './core/types';
 
 declare global {
@@ -64,16 +65,8 @@ function boot(): BookingPanelInstance | null {
     position: rawPosition === 'left' ? 'left' : 'right',
   });
 
-  // Offer query goes before any fragment: wakesys.app/<park>/booking#step2 with
-  // offer=aqua must become ...booking?offer=aqua#step2, not ...#step2?offer=aqua
-  // (a query string inside the fragment never reaches the server).
   function resolveUrl(offer: string | null): string {
-    if (!offer) return bookingUrl;
-    const hashIndex = bookingUrl.indexOf('#');
-    const base = hashIndex === -1 ? bookingUrl : bookingUrl.slice(0, hashIndex);
-    const hash = hashIndex === -1 ? '' : bookingUrl.slice(hashIndex);
-    const sep = base.includes('?') ? '&' : '?';
-    return `${base}${sep}offer=${encodeURIComponent(offer)}${hash}`;
+    return offer ? appendOffer(bookingUrl, offer) : bookingUrl;
   }
 
   // Owned by this boot rather than stamped on the element: a permanent flag
