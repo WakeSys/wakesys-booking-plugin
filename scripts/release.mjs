@@ -45,7 +45,10 @@ const readme = readFileSync('README.md', 'utf-8').replace(
 );
 writeFileSync('README.md', readme);
 
-sh('git add package.json dist README.md CHANGELOG.md');
+// package-lock.json too: npm version bumps both manifests, and leaving the
+// lockfile unstaged means every release ends with a dirty tree — which the
+// clean-tree guard at the top would then abort the NEXT release on.
+sh('git add package.json package-lock.json dist README.md CHANGELOG.md');
 sh(`git commit -m "release: v${version}"`);
 sh(`git tag v${version}`);
 sh('git push && git push --tags');
