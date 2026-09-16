@@ -9,6 +9,8 @@ export interface BookingPanelProviderProps {
     mobileBreakpoint?: number;
     position?: 'left' | 'right';
     title?: string;
+    /** Label of the resume pill shown after closing mid-booking. Default 'Continue booking'. */
+    resumeLabel?: string;
     /** Rendered instead of opening a new tab when below the breakpoint. */
     renderMobileFallback?: (args: MobileFallbackArgs) => ReactNode;
     /**
@@ -18,7 +20,7 @@ export interface BookingPanelProviderProps {
      */
     renderNotice?: () => ReactNode;
 }
-export declare function BookingPanelProvider({ bookingUrl, mobileBreakpoint, position, title, renderMobileFallback, renderNotice, }: BookingPanelProviderProps): import("react").JSX.Element;
+export declare function BookingPanelProvider({ bookingUrl, mobileBreakpoint, position, title, resumeLabel, renderMobileFallback, renderNotice, }: BookingPanelProviderProps): import("react").JSX.Element;
 export declare function useBookingPanel(): {
     open: (url?: string) => void;
     close: () => void;

@@ -19,7 +19,15 @@ export function buildCss(breakpoint: number, position: 'left' | 'right'): string
 .ws-spinner.ws-hidden{opacity:0;pointer-events:none}
 @keyframes ws-spin{to{transform:rotate(360deg)}}
 .ws-spinner svg{animation:ws-spin .8s linear infinite}
-@media${mobileMediaQuery(breakpoint)}{.ws-panel{display:none!important}.ws-overlay{display:none!important}}
+.ws-resume{position:fixed;bottom:1.25rem;${position}:1.25rem;display:none;align-items:center;gap:.25rem;padding:.25rem .25rem .25rem 1rem;background:#0f172a;color:#fff;border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.3),0 0 0 1px rgba(255,255,255,.08);font:600 .9rem/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;z-index:9998}
+.ws-resume.ws-show{display:flex}
+.ws-resume button{appearance:none;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;border-radius:999px;line-height:0}
+.ws-resume-open{padding:.5rem .25rem .5rem 0;line-height:1.2}
+.ws-resume-dismiss{padding:.5rem}
+.ws-resume-dismiss:hover{background:rgba(255,255,255,.12)}
+.ws-resume button:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.ws-resume-dismiss svg{width:16px;height:16px;display:block}
+@media${mobileMediaQuery(breakpoint)}{.ws-panel{display:none!important}.ws-overlay{display:none!important}.ws-resume{display:none!important}}
 body.ws-lock{overflow:hidden;touch-action:none;overscroll-behavior:contain}
 `.trim();
 }

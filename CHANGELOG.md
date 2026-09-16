@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.1.0
+
+### Changed
+- Closing the panel no longer discards the booking. The iframe keeps its
+  document, and a later open with the same URL resumes exactly where the
+  visitor left off instead of restarting on step one. Opening a different URL
+  (an offer deep link, a park switch) still loads fresh.
+
+- The panel no longer pushes a history entry on open or calls `history.back()`
+  on close, and the browser Back button no longer closes it. The booking app
+  pushes its own steps into the tab's shared history, so the old `back()`
+  rewound the booking by one step on every close once the frame was kept
+  alive. Back now steps the booking back while the panel is open. See README,
+  "Browser history", for the remaining trade-off after closing mid-booking.
+
+### Added
+- A "Continue booking" pill in the bottom corner, shown after the panel is
+  closed while the booking app sits on a page other than the one it started
+  on. Clicking it reopens the panel; its X discards the booking so the next
+  open starts on the first page (state the booking app keeps on its own
+  origin is untouched). The label is configurable via `data-wakesys-resume-label`, the
+  `resumeLabel` prop, or the `resumeLabel` config field. Detection uses
+  `history.length` growth while the panel is open, which the booking app can
+  make exact with the optional `wakesys:route` postMessage (see README).
+- Local development support: a page that is itself served from `localhost`,
+  `127.0.0.1`, or `[::1]` may now open a booking URL on any of those hosts
+  (any port). Pages on every other host keep the exact-origin allowlist
+  (`wakesys.app`, `staging.wakesys.app`), so production behavior is
+  unchanged — a live site can never frame localhost.
+
 ## 1.0.1
 
 ### Documentation

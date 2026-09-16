@@ -63,6 +63,7 @@ function boot(): BookingPanelInstance | null {
     bookingUrl,
     mobileBreakpoint: normalizeBreakpoint(container.getAttribute('data-wakesys-mobile')),
     position: rawPosition === 'left' ? 'left' : 'right',
+    resumeLabel: container.getAttribute('data-wakesys-resume-label') ?? undefined,
   });
 
   function resolveUrl(offer: string | null): string {

@@ -1,5 +1,5 @@
 /**
- * wakesys Booking Plugin v1.0.1
+ * wakesys Booking Plugin v1.1.0
  * Copyright (c) 2026 wakesys s.à.r.l.
  * Licensed under GPL-3.0
  * https://github.com/wakesys/wakesys-booking-plugin
@@ -20,9 +20,15 @@ var ALLOWED_ORIGINS = [
   "https://wakesys.app",
   "https://staging.wakesys.app"
 ];
-function isAllowedUrl(url) {
+var LOCAL_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"];
+function isLocalHostname(hostname) {
+  return LOCAL_HOSTNAMES.includes(hostname);
+}
+function isAllowedUrl(url, pageHostname = typeof window === "undefined" ? "" : window.location.hostname) {
   try {
-    return ALLOWED_ORIGINS.includes(new URL(url).origin);
+    const parsed = new URL(url);
+    if (ALLOWED_ORIGINS.includes(parsed.origin)) return true;
+    return isLocalHostname(pageHostname) && (parsed.protocol === "http:" || parsed.protocol === "https:") && isLocalHostname(parsed.hostname);
   } catch (e) {
     return false;
   }
@@ -64,7 +70,15 @@ function buildCss(breakpoint, position) {
 .ws-spinner.ws-hidden{opacity:0;pointer-events:none}
 @keyframes ws-spin{to{transform:rotate(360deg)}}
 .ws-spinner svg{animation:ws-spin .8s linear infinite}
-@media${mobileMediaQuery(breakpoint)}{.ws-panel{display:none!important}.ws-overlay{display:none!important}}
+.ws-resume{position:fixed;bottom:1.25rem;${position}:1.25rem;display:none;align-items:center;gap:.25rem;padding:.25rem .25rem .25rem 1rem;background:#0f172a;color:#fff;border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.3),0 0 0 1px rgba(255,255,255,.08);font:600 .9rem/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;z-index:9998}
+.ws-resume.ws-show{display:flex}
+.ws-resume button{appearance:none;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;border-radius:999px;line-height:0}
+.ws-resume-open{padding:.5rem .25rem .5rem 0;line-height:1.2}
+.ws-resume-dismiss{padding:.5rem}
+.ws-resume-dismiss:hover{background:rgba(255,255,255,.12)}
+.ws-resume button:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.ws-resume-dismiss svg{width:16px;height:16px;display:block}
+@media${mobileMediaQuery(breakpoint)}{.ws-panel{display:none!important}.ws-overlay{display:none!important}.ws-resume{display:none!important}}
 body.ws-lock{overflow:hidden;touch-action:none;overscroll-behavior:contain}
 `.trim();
 }
@@ -84,24 +98,6 @@ function releaseStyles() {
     styleEl.remove();
     styleEl = null;
   }
-}
-
-// src/core/history.ts
-var depth = 0;
-function pushPanelState() {
-  try {
-    history.pushState({ wakesysPanel: true }, "");
-    depth += 1;
-  } catch (e) {
-  }
-}
-function popPanelState() {
-  if (depth === 0) return;
-  depth -= 1;
-  history.back();
-}
-function notePopped() {
-  if (depth > 0) depth -= 1;
 }
 
 // src/core/focus-trap.ts
@@ -124,14 +120,20 @@ function handleTabKey(e, container) {
 var CLOSE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 var SPINNER_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
 function createPanel(config) {
-  var _a;
+  var _a, _b;
   const breakpoint = normalizeBreakpoint(config.mobileBreakpoint);
   const position = config.position === "left" ? "left" : "right";
   const title = (_a = config.title) != null ? _a : "Booking";
+  const resumeLabel = (_b = config.resumeLabel) != null ? _b : "Continue booking";
   let bookingUrl = config.bookingUrl;
   let lastFocused = null;
   let destroyed = false;
   let focusTimer = null;
+  let loadedUrl = null;
+  let startPath = null;
+  let currentPath = null;
+  let lengthAtOpen = 0;
+  let grewWhileOpen = false;
   ensureStyles(buildCss(breakpoint, position));
   const overlay = document.createElement("div");
   overlay.className = "ws-overlay";
@@ -176,7 +178,20 @@ function createPanel(config) {
   iframe.addEventListener("load", onIframeLoad);
   body.append(spinner, iframe);
   panel.append(header, notice, body);
-  document.body.append(overlay, panel);
+  const resume = document.createElement("div");
+  resume.className = `ws-resume ws-resume-${position}`;
+  const resumeOpenBtn = document.createElement("button");
+  resumeOpenBtn.className = "ws-resume-open";
+  resumeOpenBtn.type = "button";
+  resumeOpenBtn.textContent = resumeLabel;
+  const resumeDismissBtn = document.createElement("button");
+  resumeDismissBtn.className = "ws-resume-dismiss";
+  resumeDismissBtn.type = "button";
+  resumeDismissBtn.setAttribute("aria-label", "Dismiss and start over");
+  resumeDismissBtn.title = "Dismiss and start over";
+  resumeDismissBtn.innerHTML = CLOSE_ICON;
+  resume.append(resumeOpenBtn, resumeDismissBtn);
+  document.body.append(overlay, panel, resume);
   function safeOrigin(url) {
     try {
       return new URL(url).origin;
@@ -190,8 +205,34 @@ function createPanel(config) {
   function isOpen() {
     return !destroyed && isShown();
   }
+  function hasNavigated() {
+    if (startPath !== null && currentPath !== null) return currentPath !== startPath;
+    return grewWhileOpen;
+  }
+  function updateResume() {
+    const show = !destroyed && !isShown() && loadedUrl !== null && hasNavigated();
+    resume.classList.toggle("ws-show", show);
+  }
+  function resetTracking() {
+    startPath = null;
+    currentPath = null;
+    lengthAtOpen = history.length;
+    grewWhileOpen = false;
+  }
+  function load(target) {
+    loadedUrl = target;
+    resetTracking();
+    spinner.classList.remove("ws-hidden");
+    iframe.src = target;
+  }
+  function unload() {
+    loadedUrl = null;
+    resetTracking();
+    iframe.removeAttribute("src");
+    updateResume();
+  }
   function open(url) {
-    var _a2, _b;
+    var _a2, _b2;
     if (destroyed) return;
     const target = url != null ? url : bookingUrl;
     if (!isAllowedUrl(target)) {
@@ -204,16 +245,16 @@ function createPanel(config) {
       return;
     }
     const wasOpen = isShown();
-    spinner.classList.remove("ws-hidden");
-    iframe.src = target;
+    if (target !== loadedUrl) load(target);
     if (wasOpen) return;
+    lengthAtOpen = history.length;
     lastFocused = document.activeElement;
     overlay.classList.add("ws-show");
     panel.classList.add("ws-show");
     panel.removeAttribute("inert");
     document.body.classList.add("ws-lock");
-    pushPanelState();
-    (_b = config.onOpenChange) == null ? void 0 : _b.call(config, true);
+    updateResume();
+    (_b2 = config.onOpenChange) == null ? void 0 : _b2.call(config, true);
     focusTimer = setTimeout(() => {
       focusTimer = null;
       closeBtn.focus({ preventScroll: true });
@@ -222,11 +263,12 @@ function createPanel(config) {
   function hide() {
     var _a2;
     if (!isShown()) return;
+    if (history.length > lengthAtOpen) grewWhileOpen = true;
     overlay.classList.remove("ws-show");
     panel.classList.remove("ws-show");
     panel.setAttribute("inert", "");
     document.body.classList.remove("ws-lock");
-    iframe.removeAttribute("src");
+    updateResume();
     (_a2 = config.onOpenChange) == null ? void 0 : _a2.call(config, false);
     if (lastFocused && document.contains(lastFocused)) {
       lastFocused.focus({ preventScroll: true });
@@ -235,22 +277,29 @@ function createPanel(config) {
   }
   function close() {
     if (destroyed) return;
-    if (!isShown()) return;
     hide();
-    popPanelState();
   }
   const onOverlayClick = () => close();
   const onCloseClick = () => close();
   overlay.addEventListener("click", onOverlayClick);
   closeBtn.addEventListener("click", onCloseClick);
-  const onPopState = (e) => {
-    var _a2;
-    if (!isOpen()) return;
-    if ((_a2 = e.state) == null ? void 0 : _a2.wakesysPanel) return;
-    notePopped();
-    hide();
+  const onResumeOpen = () => {
+    if (loadedUrl) open(loadedUrl);
   };
-  window.addEventListener("popstate", onPopState);
+  const onResumeDismiss = () => unload();
+  resumeOpenBtn.addEventListener("click", onResumeOpen);
+  resumeDismissBtn.addEventListener("click", onResumeDismiss);
+  const onMessage = (e) => {
+    if (destroyed || loadedUrl === null) return;
+    if (e.source !== iframe.contentWindow) return;
+    if (!isAllowedUrl(e.origin)) return;
+    const data = e.data;
+    if (!data || data.type !== "wakesys:route" || typeof data.path !== "string") return;
+    if (startPath === null) startPath = data.path;
+    currentPath = data.path;
+    updateResume();
+  };
+  window.addEventListener("message", onMessage);
   const onKeyDown = (e) => {
     if (!isOpen()) return;
     if (e.key === "Escape") {
@@ -289,22 +338,23 @@ function createPanel(config) {
     destroy() {
       if (destroyed) return;
       destroyed = true;
-      if (isShown()) {
-        hide();
-        popPanelState();
-      }
+      hide();
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = null;
       if (focusTimer) clearTimeout(focusTimer);
       focusTimer = null;
       overlay.removeEventListener("click", onOverlayClick);
       closeBtn.removeEventListener("click", onCloseClick);
+      resumeOpenBtn.removeEventListener("click", onResumeOpen);
+      resumeDismissBtn.removeEventListener("click", onResumeDismiss);
       iframe.removeEventListener("load", onIframeLoad);
-      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("message", onMessage);
       document.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("resize", onResize);
+      resume.classList.remove("ws-show");
       overlay.remove();
       panel.remove();
+      resume.remove();
       releaseStyles();
     }
   };
@@ -352,6 +402,7 @@ function BookingPanelProvider({
   mobileBreakpoint,
   position,
   title,
+  resumeLabel,
   renderMobileFallback,
   renderNotice
 }) {
@@ -368,6 +419,7 @@ function BookingPanelProvider({
       mobileBreakpoint,
       position,
       title,
+      resumeLabel,
       onMobileOpen: (url) => {
         if (!fallbackRef.current) return false;
         setPendingUrl(url);
@@ -385,7 +437,7 @@ function BookingPanelProvider({
       setModuleIsOpen(false);
       setNoticeSlot(null);
     };
-  }, [mobileBreakpoint, position, title]);
+  }, [mobileBreakpoint, position, title, resumeLabel]);
   useEffect(() => {
     var _a;
     (_a = panelRef.current) == null ? void 0 : _a.setBookingUrl(bookingUrl);

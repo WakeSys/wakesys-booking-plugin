@@ -6,6 +6,8 @@ Drop-in booking panel for any website. One script tag, one container.
 
 | Version | Released   | Notes              |
 | ------- | ---------- | ------------------- |
+| 1.1.0   | 2026-09-16 | Closing keeps the booking; "Continue booking" pill; browser Back no longer closes the panel; localhost allowed in local development. |
+| 1.0.1   | 2026-08-21 | CDN URL and release-script fixes; corrected `?offer=` docs. |
 | 1.0.0   | 2026-08-20 | First public release. |
 
 ## Installation
@@ -24,7 +26,7 @@ Pin an exact version. `@1` is available if you prefer automatic patch updates, b
 The package is not published to the npm registry. Install it from a GitHub tag instead:
 
 ```bash
-npm install github:WakeSys/wakesys-booking-plugin#v1.0.1
+npm install github:WakeSys/wakesys-booking-plugin#v1.1.0
 ```
 
 The built `dist/` output is committed, so no build step runs on install. Pin an exact tag; unlike the CDN there is no `@1` alias for git dependencies, so bump the tag deliberately when you want a new version.
@@ -41,7 +43,7 @@ const panel = createBookingPanel({
 panel.open();
 ```
 
-`createBookingPanel` accepts the same `bookingUrl` / `mobileBreakpoint` / `position` / `title` config as the CDN attributes, plus `onMobileOpen` and `onOpenChange` callbacks for custom handling. It returns:
+`createBookingPanel` accepts the same `bookingUrl` / `mobileBreakpoint` / `position` / `title` / `resumeLabel` config as the CDN attributes, plus `onMobileOpen` and `onOpenChange` callbacks for custom handling. It returns:
 
 | Member          | Description                                                       |
 | ---------------- | --------------------------------------------------------------------- |
@@ -94,10 +96,11 @@ function BookButton() {
 | `mobileBreakpoint`     | No       | Viewport width below which booking opens in a new tab. Default `768`.       |
 | `position`             | No       | `'right'` \| `'left'`. Default `'right'`.                                   |
 | `title`                | No       | Panel header text and `aria-label`. Default `'Booking'`.                    |
+| `resumeLabel`          | No       | Label of the resume pill. Default `'Continue booking'`. See [Resuming a booking](#resuming-a-booking). |
 | `renderMobileFallback` | No       | `(args: { url, confirm, cancel }) => ReactNode`, rendered instead of opening a new tab below the breakpoint. Call `args.confirm()` to proceed to `args.url`, or `args.cancel()` to dismiss. |
 | `renderNotice`         | No       | `() => ReactNode`, portaled into the panel between the header and the iframe (e.g. a demo-mode banner). Absent renders nothing. |
 
-Changing `title`, `position`, or `mobileBreakpoint` recreates the panel instance and closes an open booking. `bookingUrl` deliberately does not — it updates the existing panel in place, so an in-progress booking survives a URL change (e.g. a route-driven park switch).
+Changing `title`, `position`, `mobileBreakpoint`, or `resumeLabel` recreates the panel instance and closes an open booking. `bookingUrl` deliberately does not — it updates the existing panel in place, so an in-progress booking survives a URL change (e.g. a route-driven park switch).
 
 An invalid `bookingUrl` **throws** from `BookingPanelProvider` (and from `createBookingPanel` generally), where the vanilla script-tag adapter degrades to a console warning and a no-op `window.BookingPanel` instead. This is deliberate: the React prop is a typed value supplied by the app's own author, so a bad URL is a bug worth failing loudly on; the vanilla adapter boots from `data-` attributes on a page it doesn't control, so it degrades gracefully rather than breaking a stranger's page.
 
@@ -108,7 +111,7 @@ An invalid `bookingUrl` **throws** from `BookingPanelProvider` (and from `create
 | `open(url?)`  | Opens the panel, optionally with a different booking URL for this call only.  |
 | `close()`     | Closes the panel.                                                              |
 | `openOffer(offer)` | Opens the panel at `<bookingUrl>?offer=<offer>`, using whichever `bookingUrl` the mounted provider currently has. Note the booking app does not currently read `?offer=` — see [Triggering](#triggering). |
-| `isOpen`      | Boolean, kept in sync with every real open/close transition — including the close button, the overlay, Escape, browser back, and the mobile-resize auto-close, not just calls made through this hook. |
+| `isOpen`      | Boolean, kept in sync with every real open/close transition — including the close button, the overlay, Escape, and the mobile-resize auto-close, not just calls made through this hook. |
 
 ## Configuration
 
@@ -119,6 +122,7 @@ Set as attributes on the `#wakesys-app` container element (CDN usage) or as prop
 | `data-wakesys-url`        | Yes      | —       | URL              | The booking page to display, e.g. `https://wakesys.app/your-park/booking`. |
 | `data-wakesys-mobile`     | No       | `768`   | number (px)      | Viewport width below which booking opens in a new tab instead of the panel. |
 | `data-wakesys-position`   | No       | `right` | `right` \| `left`| Side the panel slides in from.                                    |
+| `data-wakesys-resume-label` | No     | `Continue booking` | text    | Label of the resume pill (see [Resuming a booking](#resuming-a-booking)). |
 
 ## Triggering
 
@@ -165,6 +169,34 @@ window.BookingPanel.setBookingUrl(url); // replaces the default URL for subseque
 ```
 
 `window.BookingPanel` is always defined once the script has loaded, even if the plugin failed to boot (missing `#wakesys-app`, missing `data-wakesys-url`, or a disallowed URL). In that case its methods are warning no-ops — they log to the console and do nothing, rather than throwing.
+
+## Resuming a booking
+
+Closing the panel does not discard the booking. The iframe keeps its document, so opening the panel again with the same URL (the default "Book now" button) brings the visitor back to the exact step they left. Opening a different URL, such as an offer deep link, loads fresh.
+
+When the panel is closed while the booking app is on a page other than the one it started on, a small "Continue booking" pill appears in the bottom corner on the panel's side. Clicking it reopens the panel. Its X discards the booking: the frame is blanked and the next open starts on the first page. Anything the booking app persisted on its own origin, such as a cookie-backed cart, is untouched, since the plugin cannot reach it. The pill is never shown on mobile, where booking opens in a new tab.
+
+The plugin cannot see inside the cross-origin frame, so it detects "moved to another page" from the tab's shared session history: a client-side step inside the booking app grows `history.length`, and growth while the panel is open counts. This is approximate. A step made with a replace-navigation is invisible, and a return to the first page still counts as having moved on. The booking app can make it exact with the message below.
+
+### Browser history
+
+The panel does not push a history entry and never calls `history.back()`. The booking app pushes its own steps into the same shared history as the host page, so a `back()` from the panel would rewind the booking instead of closing the panel. Consequences: the browser Back button steps the booking back while the panel is open, and leaves the page when the booking is on its first page. After closing mid-booking, Back first rewinds the hidden frame's steps before it leaves the host page. That last point is inherent to keeping the booking alive across close, and only the booking app can remove it by navigating with replace when framed.
+
+### Booking app contract (optional)
+
+The booking app can tell the plugin exactly which page it is on by posting a message to its parent on every route change, including the first render. When these messages arrive they take precedence over the history heuristic:
+
+```ts
+// In the booking layout of the booking app (React Router shown)
+const { pathname } = useLocation();
+useEffect(() => {
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'wakesys:route', path: pathname }, '*');
+  }
+}, [pathname]);
+```
+
+The plugin accepts the message only from its own iframe and only from `wakesys.app`, `staging.wakesys.app`, or localhost during local development. The path is the only field read; a wildcard target origin is fine because the message carries nothing sensitive.
 
 ## Security
 

@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { bootFromDom } from '../src/iife';
-import { resetDepth } from '../src/core/history';
 import * as core from '../src/core';
 
 const URL_A = 'https://wakesys.app/park-a/booking';
@@ -18,7 +17,6 @@ function mountContainer(attrs: Record<string, string>) {
 beforeEach(() => {
   document.body.innerHTML = '';
   document.head.innerHTML = '';
-  resetDepth();
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
   vi.spyOn(history, 'pushState').mockImplementation(() => {});
   vi.spyOn(history, 'back').mockImplementation(() => {});

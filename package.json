@@ -1,10 +1,10 @@
 {
   "name": "wakesys-booking-plugin",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Drop-in booking panel for any website. One script tag, one container.",
   "type": "module",
   "license": "GPL-3.0",
-  "author": "wakesys s.à.r.l.",
+  "author": "wakesys s.\u00e0.r.l.",
   "repository": {
     "type": "git",
     "url": "https://github.com/wakesys/wakesys-booking-plugin"

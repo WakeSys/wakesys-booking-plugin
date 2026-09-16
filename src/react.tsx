@@ -15,7 +15,7 @@ import type { BookingPanelInstance } from './core/types';
  * than read from mutable module state during render), driven by the panel's
  * onOpenChange callback so it stays true for every real transition -
  * including ones that bypass the hook entirely, like the close button, the
- * overlay, Escape, browser back, and the mobile-resize auto-close. Reading
+ * overlay, Escape, and the mobile-resize auto-close. Reading
  * it as the snapshot (instead of computing it mid-render from `instance`)
  * is also what prevents two simultaneously-rendered consumers from tearing.
  */
@@ -48,6 +48,8 @@ export interface BookingPanelProviderProps {
   mobileBreakpoint?: number;
   position?: 'left' | 'right';
   title?: string;
+  /** Label of the resume pill shown after closing mid-booking. Default 'Continue booking'. */
+  resumeLabel?: string;
   /** Rendered instead of opening a new tab when below the breakpoint. */
   renderMobileFallback?: (args: MobileFallbackArgs) => ReactNode;
   /**
@@ -63,6 +65,7 @@ export function BookingPanelProvider({
   mobileBreakpoint,
   position,
   title,
+  resumeLabel,
   renderMobileFallback,
   renderNotice,
 }: BookingPanelProviderProps) {
@@ -84,6 +87,7 @@ export function BookingPanelProvider({
       mobileBreakpoint,
       position,
       title,
+      resumeLabel,
       onMobileOpen: (url) => {
         if (!fallbackRef.current) return false;
         setPendingUrl(url);
@@ -105,7 +109,7 @@ export function BookingPanelProvider({
     // Recreated only on structural config change; URL updates go through the
     // effect below so open panels are not torn down mid-booking.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobileBreakpoint, position, title]);
+  }, [mobileBreakpoint, position, title, resumeLabel]);
 
   useEffect(() => {
     panelRef.current?.setBookingUrl(bookingUrl);

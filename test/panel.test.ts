@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createPanel } from '../src/core/panel';
-import { resetDepth, getDepth } from '../src/core/history';
 
 const URL_A = 'https://wakesys.app/park-a/booking';
 const URL_B = 'https://wakesys.app/park-b/booking';
@@ -14,8 +13,10 @@ let panel: ReturnType<typeof createPanel>;
 beforeEach(() => {
   document.body.innerHTML = '';
   document.head.innerHTML = '';
-  resetDepth();
   setWidth(1280);
+  // The panel must never touch browser history: the cross-origin booking app
+  // pushes its own steps into the same shared list, so a history.back() from
+  // here would rewind the booking rather than pop anything of the panel's.
   vi.spyOn(history, 'pushState').mockImplementation(() => {});
   vi.spyOn(history, 'back').mockImplementation(() => {});
 });
@@ -91,21 +92,22 @@ describe('open / close', () => {
     expect(panel.isOpen()).toBe(false);
   });
 
-  it('pushes exactly one history entry even if open is called twice', () => {
+  it('never pushes a history entry, however often open is called', () => {
     panel = createPanel({ bookingUrl: URL_A });
     panel.open();
     panel.open(URL_B);
-    expect(history.pushState).toHaveBeenCalledTimes(1);
+    expect(history.pushState).not.toHaveBeenCalled();
   });
 
-  it('unlocks the body and clears the iframe on close', () => {
+  it('unlocks the body and keeps the iframe document on close', () => {
     panel = createPanel({ bookingUrl: URL_A });
     panel.open();
     panel.close();
     expect(panel.isOpen()).toBe(false);
     expect(document.body.classList.contains('ws-lock')).toBe(false);
-    expect(document.querySelector('iframe')!.hasAttribute('src')).toBe(false);
-    expect(history.back).toHaveBeenCalledTimes(1);
+    // Kept on purpose: see test/resume.test.ts for the resume behaviour.
+    expect(document.querySelector('iframe')!.getAttribute('src')).toBe(URL_A);
+    expect(history.back).not.toHaveBeenCalled();
   });
 
   it('reapplies inert to the panel on close', () => {
@@ -186,18 +188,13 @@ describe('resize', () => {
 });
 
 describe('popstate', () => {
-  it('hides without calling history.back when the browser pops the entry', () => {
+  it('leaves the panel alone: browser back belongs to the booking app inside the frame', () => {
     panel = createPanel({ bookingUrl: URL_A });
     panel.open();
-    expect(getDepth()).toBe(1);
 
-    // Simulate the browser's own back navigation: the entry is already gone
-    // by the time this fires, so the handler must not navigate again.
     window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
 
-    expect(panel.isOpen()).toBe(false);
-    expect(document.body.classList.contains('ws-lock')).toBe(false);
-    expect(getDepth()).toBe(0);
+    expect(panel.isOpen()).toBe(true);
     expect(history.back).not.toHaveBeenCalled();
   });
 });
@@ -285,20 +282,19 @@ describe('destroy', () => {
     expect(spinnerEl.classList.contains('ws-hidden')).toBe(false);
   });
 
-  it('pops its own history entry and restores focus when destroyed while open', () => {
+  it('unlocks the body and restores focus when destroyed while open, without touching history', () => {
     const trigger = document.createElement('button');
     document.body.appendChild(trigger);
     trigger.focus();
 
     panel = createPanel({ bookingUrl: URL_A });
     panel.open();
-    expect(getDepth()).toBe(1);
 
     panel.destroy();
 
-    expect(getDepth()).toBe(0);
     expect(document.body.classList.contains('ws-lock')).toBe(false);
     expect(document.activeElement).toBe(trigger);
+    expect(history.back).not.toHaveBeenCalled();
   });
 
   it('makes close() and isOpen() no-ops on a destroyed instance, without touching a live sibling', () => {
@@ -307,20 +303,16 @@ describe('destroy', () => {
     panel = b; // let afterEach clean up b
 
     a.open();
-    a.destroy(); // destroys while open: pops its own entry via the fixed teardown
+    a.destroy(); // destroys while open
 
     b.open();
     expect(document.body.classList.contains('ws-lock')).toBe(true);
-    const depthBeforeStaleClose = getDepth();
-    const backCallsBeforeStaleClose = (history.back as ReturnType<typeof vi.fn>).mock.calls.length;
 
     a.close(); // stale handle: must be a complete no-op
 
     expect(a.isOpen()).toBe(false);
     expect(b.isOpen()).toBe(true);
     expect(document.body.classList.contains('ws-lock')).toBe(true);
-    expect(getDepth()).toBe(depthBeforeStaleClose);
-    expect(history.back).toHaveBeenCalledTimes(backCallsBeforeStaleClose);
   });
 
   it('clears the pending post-open focus timer, so it cannot steal focus after teardown (m1)', () => {
@@ -395,12 +387,17 @@ describe('destroy', () => {
     const closeBtnEl = document.querySelector('.ws-close')!;
     const iframeEl = document.querySelector('iframe')!;
 
+    const resumeOpenEl = document.querySelector('.ws-resume-open')!;
+    const resumeDismissEl = document.querySelector('.ws-resume-dismiss')!;
+
     const expectedTargets: [EventTarget, string][] = [
-      [window, 'popstate'],
       [window, 'resize'],
+      [window, 'message'],
       [document, 'keydown'],
       [overlayEl, 'click'],
       [closeBtnEl, 'click'],
+      [resumeOpenEl, 'click'],
+      [resumeDismissEl, 'click'],
       [iframeEl, 'load'],
     ];
 
@@ -460,17 +457,6 @@ describe('onOpenChange', () => {
     onOpenChange.mockClear();
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it('fires false when closed via browser back (popstate)', () => {
-    const onOpenChange = vi.fn();
-    panel = createPanel({ bookingUrl: URL_A, onOpenChange });
-    panel.open();
-    onOpenChange.mockClear();
-
-    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

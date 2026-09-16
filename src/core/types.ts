@@ -8,6 +8,12 @@ export interface BookingPanelConfig {
   /** Panel header text and aria-label. Default 'Booking'. */
   title?: string;
   /**
+   * Label of the resume pill that appears after the panel is closed while
+   * the booking app sits on a page other than the one it started on.
+   * Default 'Continue booking'.
+   */
+  resumeLabel?: string;
+  /**
    * Called instead of window.open when the viewport is below the breakpoint.
    * Return true to signal the caller handled it; anything else falls through
    * to window.open.
@@ -15,9 +21,9 @@ export interface BookingPanelConfig {
   onMobileOpen?: (url: string) => boolean | void;
   /**
    * Called on every real open/close transition: the close button, the
-   * overlay, Escape, browser back, the mobile-resize auto-close, and
-   * destroy() while open, in addition to open()/close() calls. Not called
-   * for no-op calls (e.g. close() while already closed).
+   * overlay, Escape, the mobile-resize auto-close, and destroy() while open,
+   * in addition to open()/close() calls. Not called for no-op calls (e.g.
+   * close() while already closed).
    */
   onOpenChange?: (isOpen: boolean) => void;
 }

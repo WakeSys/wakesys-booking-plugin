@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act, cleanup } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { BookingPanelProvider, useBookingPanel } from '../src/react';
-import { resetDepth } from '../src/core/history';
 
 const URL_A = 'https://wakesys.app/park-a/booking';
 const URL_B = 'https://wakesys.app/park-b/booking';
@@ -27,7 +26,6 @@ function CloseTrigger() {
 beforeEach(() => {
   document.body.innerHTML = '';
   document.head.innerHTML = '';
-  resetDepth();
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
   vi.spyOn(history, 'pushState').mockImplementation(() => {});
   vi.spyOn(history, 'back').mockImplementation(() => {});
@@ -253,21 +251,6 @@ describe('isOpen reflects native close routes (not just hook close())', () => {
     expect(trigger.textContent).toBe('open');
 
     act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
-    expect(trigger.textContent).toBe('closed');
-  });
-
-  it('updates when closed via browser back (popstate)', () => {
-    render(
-      <>
-        <Trigger />
-        <BookingPanelProvider bookingUrl={URL_A} />
-      </>,
-    );
-    const trigger = screen.getByRole('button', { name: /^(closed|open)$/ });
-    act(() => { trigger.click(); });
-    expect(trigger.textContent).toBe('open');
-
-    act(() => { window.dispatchEvent(new PopStateEvent('popstate', { state: null })); });
     expect(trigger.textContent).toBe('closed');
   });
 

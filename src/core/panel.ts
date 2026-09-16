@@ -2,7 +2,6 @@ import type { BookingPanelConfig, BookingPanelInstance } from './types';
 import { isAllowedUrl } from './allowlist';
 import { isMobile, normalizeBreakpoint } from './viewport';
 import { buildCss, ensureStyles, releaseStyles } from './styles';
-import { pushPanelState, popPanelState, notePopped } from './history';
 import { handleTabKey } from './focus-trap';
 
 const CLOSE_ICON =
@@ -15,11 +14,29 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
   const breakpoint = normalizeBreakpoint(config.mobileBreakpoint);
   const position = config.position === 'left' ? 'left' : 'right';
   const title = config.title ?? 'Booking';
+  const resumeLabel = config.resumeLabel ?? 'Continue booking';
 
   let bookingUrl = config.bookingUrl;
   let lastFocused: HTMLElement | null = null;
   let destroyed = false;
   let focusTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // The document currently loaded in the iframe. Closing the panel no longer
+  // blanks the iframe, so a later open() with the same URL resumes the
+  // booking where the visitor left it instead of restarting on step one.
+  let loadedUrl: string | null = null;
+  // The resume pill shows only when the booking app sits on a different page
+  // from the one it started on. Two signals, both reset on every real load:
+  //  - exact: `wakesys:route` postMessages from the booking app, if it sends
+  //    them (startPath / currentPath);
+  //  - fallback: history.length. The tab's session history is shared between
+  //    host and frame, so a client-side step inside the cross-origin frame
+  //    grows it. Growth is only counted while the panel is open, because the
+  //    host page may route while the panel is shut and the frame is inert.
+  let startPath: string | null = null;
+  let currentPath: string | null = null;
+  let lengthAtOpen = 0;
+  let grewWhileOpen = false;
 
   ensureStyles(buildCss(breakpoint, position));
 
@@ -82,10 +99,27 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
   body.append(spinner, iframe);
   panel.append(header, notice, body);
 
+  const resume = document.createElement('div');
+  resume.className = `ws-resume ws-resume-${position}`;
+
+  const resumeOpenBtn = document.createElement('button');
+  resumeOpenBtn.className = 'ws-resume-open';
+  resumeOpenBtn.type = 'button';
+  resumeOpenBtn.textContent = resumeLabel;
+
+  const resumeDismissBtn = document.createElement('button');
+  resumeDismissBtn.className = 'ws-resume-dismiss';
+  resumeDismissBtn.type = 'button';
+  resumeDismissBtn.setAttribute('aria-label', 'Dismiss and start over');
+  resumeDismissBtn.title = 'Dismiss and start over';
+  resumeDismissBtn.innerHTML = CLOSE_ICON;
+
+  resume.append(resumeOpenBtn, resumeDismissBtn);
+
   // Mounted on body: position:fixed resolves against a transformed, filtered,
   // or contained ancestor rather than the viewport, and host themes routinely
   // wrap injected markup in exactly that.
-  document.body.append(overlay, panel);
+  document.body.append(overlay, panel, resume);
 
   function safeOrigin(url: string): string | null {
     try {
@@ -105,6 +139,39 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
     return !destroyed && isShown();
   }
 
+  function hasNavigated(): boolean {
+    if (startPath !== null && currentPath !== null) return currentPath !== startPath;
+    return grewWhileOpen;
+  }
+
+  function updateResume(): void {
+    const show = !destroyed && !isShown() && loadedUrl !== null && hasNavigated();
+    resume.classList.toggle('ws-show', show);
+  }
+
+  function resetTracking(): void {
+    startPath = null;
+    currentPath = null;
+    lengthAtOpen = history.length;
+    grewWhileOpen = false;
+  }
+
+  function load(target: string): void {
+    loadedUrl = target;
+    resetTracking();
+    spinner.classList.remove('ws-hidden');
+    iframe.src = target;
+  }
+
+  /** Discards the booking document: the next open() cold-loads. Cannot touch
+   *  anything the booking app persisted on its own origin (cookies, storage). */
+  function unload(): void {
+    loadedUrl = null;
+    resetTracking();
+    iframe.removeAttribute('src');
+    updateResume();
+  }
+
   function open(url?: string): void {
     if (destroyed) return;
     const target = url ?? bookingUrl;
@@ -122,17 +189,19 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
 
     const wasOpen = isShown();
 
-    spinner.classList.remove('ws-hidden');
-    iframe.src = target;
+    // Same URL as the document already in the iframe: resume it as-is. Any
+    // other URL (an offer deep link, a park switch) is a fresh navigation.
+    if (target !== loadedUrl) load(target);
 
-    if (wasOpen) return; // already shown: swap the URL, don't re-push history
+    if (wasOpen) return; // already shown: the URL swap above is all there is to do
 
+    lengthAtOpen = history.length;
     lastFocused = document.activeElement as HTMLElement | null;
     overlay.classList.add('ws-show');
     panel.classList.add('ws-show');
     panel.removeAttribute('inert');
     document.body.classList.add('ws-lock');
-    pushPanelState();
+    updateResume();
     config.onOpenChange?.(true);
 
     focusTimer = setTimeout(() => {
@@ -141,16 +210,21 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
     }, 100);
   }
 
-  /** Visual close only. Callers decide whether history is popped. Callable
-   *  even after destroyed has been set, so destroy() can route through it. */
+  /** Visual close. Callable even after destroyed has been set, so destroy()
+   *  can route through it. Never touches browser history: the booking app
+   *  pushes its own steps into the same shared list, so a history.back()
+   *  from here would rewind the booking rather than undo anything of ours. */
   function hide(): void {
     if (!isShown()) return;
+
+    if (history.length > lengthAtOpen) grewWhileOpen = true;
 
     overlay.classList.remove('ws-show');
     panel.classList.remove('ws-show');
     panel.setAttribute('inert', '');
     document.body.classList.remove('ws-lock');
-    iframe.removeAttribute('src');
+    // The iframe keeps its document: a same-URL open() resumes the booking.
+    updateResume();
     config.onOpenChange?.(false);
 
     if (lastFocused && document.contains(lastFocused)) {
@@ -161,9 +235,7 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
 
   function close(): void {
     if (destroyed) return;
-    if (!isShown()) return;
     hide();
-    popPanelState();
   }
 
   const onOverlayClick = () => close();
@@ -171,13 +243,28 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
   overlay.addEventListener('click', onOverlayClick);
   closeBtn.addEventListener('click', onCloseClick);
 
-  const onPopState = (e: PopStateEvent) => {
-    if (!isOpen()) return;
-    if ((e.state as { wakesysPanel?: boolean } | null)?.wakesysPanel) return;
-    notePopped();
-    hide(); // browser already navigated; don't call back() again
+  const onResumeOpen = () => {
+    if (loadedUrl) open(loadedUrl);
   };
-  window.addEventListener('popstate', onPopState);
+  const onResumeDismiss = () => unload();
+  resumeOpenBtn.addEventListener('click', onResumeOpen);
+  resumeDismissBtn.addEventListener('click', onResumeDismiss);
+
+  // The booking app is cross-origin, so its client-side route changes are
+  // invisible from here; it posts `{ type: 'wakesys:route', path }` on each
+  // one. Only the panel's own iframe on an allowlisted origin is trusted.
+  const onMessage = (e: MessageEvent) => {
+    if (destroyed || loadedUrl === null) return;
+    if (e.source !== iframe.contentWindow) return;
+    if (!isAllowedUrl(e.origin)) return;
+    const data = e.data as { type?: unknown; path?: unknown } | null;
+    if (!data || data.type !== 'wakesys:route' || typeof data.path !== 'string') return;
+
+    if (startPath === null) startPath = data.path;
+    currentPath = data.path;
+    updateResume();
+  };
+  window.addEventListener('message', onMessage);
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (!isOpen()) return;
@@ -223,25 +310,10 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
       if (destroyed) return;
       destroyed = true;
 
-      // Route through the real close path first: restores focus, clears
-      // ws-lock, and pops any history entry this instance still owns. A
-      // stale destroyed instance must never later touch body classList or
-      // history state again (see close(), which is now gated on destroyed).
-      //
-      // popPanelState() calls history.back(), which — if destroy() ever ran
-      // during a programmatic client-side navigation rather than a user
-      // dismissal — would bounce the visitor back a page. This is treated as
-      // near-unreachable and left as is: the overlay intercepts link clicks
-      // and the focus trap holds Tab inside the panel while it's open, so
-      // nothing under application control can navigate the host page out
-      // from under an open panel. The alternative (skipping history.back()
-      // here) resurrects the phantom-history-entry defect this depth-counter
-      // design was built to fix — an entry pushed by open() that nothing
-      // ever pops, so the user's next real back button press does nothing.
-      if (isShown()) {
-        hide();
-        popPanelState();
-      }
+      // Route through the real close path first: restores focus and clears
+      // ws-lock. A stale destroyed instance must never later touch body
+      // classList again (see close(), which is gated on destroyed).
+      hide();
 
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = null;
@@ -250,13 +322,17 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
 
       overlay.removeEventListener('click', onOverlayClick);
       closeBtn.removeEventListener('click', onCloseClick);
+      resumeOpenBtn.removeEventListener('click', onResumeOpen);
+      resumeDismissBtn.removeEventListener('click', onResumeDismiss);
       iframe.removeEventListener('load', onIframeLoad);
-      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('message', onMessage);
       document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
 
+      resume.classList.remove('ws-show');
       overlay.remove();
       panel.remove();
+      resume.remove();
       releaseStyles();
     },
   };

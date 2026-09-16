@@ -22,12 +22,32 @@ describe('isAllowedUrl', () => {
   });
 
   it('rejects insecure and non-http schemes', () => {
-    expect(isAllowedUrl('http://wakesys.app/park/booking')).toBe(false);
+    expect(isAllowedUrl('http://wakesys.app/park/booking', 'wakesys.app')).toBe(false);
     expect(isAllowedUrl('javascript:alert(1)')).toBe(false);
   });
 
-  it('rejects localhost', () => {
-    expect(isAllowedUrl('http://localhost:3000/park/booking')).toBe(false);
+  it('rejects localhost when the page is not on localhost', () => {
+    expect(isAllowedUrl('http://localhost:3000/park/booking', 'wakesys.app')).toBe(false);
+    expect(isAllowedUrl('http://localhost:3000/park/booking', 'example.com')).toBe(false);
+    expect(isAllowedUrl('http://127.0.0.1:3000/park/booking', '')).toBe(false);
+  });
+
+  it('accepts localhost booking URLs only from a localhost page', () => {
+    expect(isAllowedUrl('http://localhost:3000/park/booking', 'localhost')).toBe(true);
+    expect(isAllowedUrl('http://localhost:8080/park/booking', 'localhost')).toBe(true);
+    expect(isAllowedUrl('http://127.0.0.1:3000/park/booking', '127.0.0.1')).toBe(true);
+    expect(isAllowedUrl('http://127.0.0.1:3000/park/booking', 'localhost')).toBe(true);
+  });
+
+  it('rejects lookalike local hostnames even from a localhost page', () => {
+    expect(isAllowedUrl('http://localhost.evil.com/park/booking', 'localhost')).toBe(false);
+    expect(isAllowedUrl('http://192.168.1.10:3000/park/booking', 'localhost')).toBe(false);
+    expect(isAllowedUrl('javascript:alert(1)', 'localhost')).toBe(false);
+  });
+
+  it('defaults the page hostname to window.location (localhost under jsdom)', () => {
+    // jsdom serves tests from http://localhost:3000
+    expect(isAllowedUrl('http://localhost:3000/park/booking')).toBe(true);
   });
 
   it('rejects the retired legacy origin', () => {
