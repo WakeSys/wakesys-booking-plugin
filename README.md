@@ -19,11 +19,15 @@ Drop-in booking panel for any website. One script tag, one container.
 
 Pin an exact version. `@1` is available if you prefer automatic patch updates, but this widget sits in a payment flow — pinning is the safer default.
 
-### npm
+### npm (from GitHub)
+
+The package is not published to the npm registry. Install it from a GitHub tag instead:
 
 ```bash
-npm install wakesys-booking-plugin
+npm install github:WakeSys/wakesys-booking-plugin#v1.0.1
 ```
+
+The built `dist/` output is committed, so no build step runs on install. Pin an exact tag; unlike the CDN there is no `@1` alias for git dependencies, so bump the tag deliberately when you want a new version.
 
 Vanilla:
 
@@ -108,7 +112,7 @@ An invalid `bookingUrl` **throws** from `BookingPanelProvider` (and from `create
 
 ## Configuration
 
-Set as attributes on the `#wakesys-app` container element (CDN usage) or as props on `BookingPanelProvider` / fields on the `createBookingPanel` config object (npm usage).
+Set as attributes on the `#wakesys-app` container element (CDN usage) or as props on `BookingPanelProvider` / fields on the `createBookingPanel` config object (package usage).
 
 | Attribute                | Required | Default | Values          | Description                                                     |
 | ------------------------- | -------- | ------- | ---------------- | ----------------------------------------------------------------- |
