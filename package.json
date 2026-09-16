@@ -4,7 +4,7 @@
   "description": "Drop-in booking panel for any website. One script tag, one container.",
   "type": "module",
   "license": "GPL-3.0",
-  "author": "wakesys s.\u00e0.r.l.",
+  "author": "wakesys s.à.r.l.",
   "repository": {
     "type": "git",
     "url": "https://github.com/wakesys/wakesys-booking-plugin"
