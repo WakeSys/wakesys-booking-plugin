@@ -6,7 +6,8 @@ Drop-in booking panel for any website. One script tag, one container.
 
 | Version | Released   | Notes              |
 | ------- | ---------- | ------------------- |
-| 1.2.0   | 2026-11-16 | Ad clicks (fbclid, gclid, UTMs, _fbp, _ga) are forwarded to the booking, in the panel and on every wakesys link; the script also works without a panel, for parks that only link out. |
+| 1.2.1   | 2026-11-16 | Ad clicks are also forwarded on every wakesys link; the script works without a panel, for parks that only link out. |
+| 1.2.0   | 2026-11-16 | Ad clicks (fbclid, gclid, UTMs, _fbp, _ga) on the host page are forwarded into the panel's booking. |
 | 1.1.0   | 2026-09-16 | Closing keeps the booking; "Continue booking" pill; browser Back no longer closes the panel; localhost allowed in local development. |
 | 1.0.1   | 2026-08-21 | CDN URL and release-script fixes; corrected `?offer=` docs. |
 | 1.0.0   | 2026-08-20 | First public release. |
@@ -17,7 +18,7 @@ Drop-in booking panel for any website. One script tag, one container.
 
 ```html
 <div id="wakesys-app" data-wakesys-url="https://wakesys.app/your-park/booking"></div>
-<script src="https://cdn.jsdelivr.net/gh/WakeSys/wakesys-booking-plugin@v1.2.0/dist/plugin.js" async></script>
+<script src="https://cdn.jsdelivr.net/gh/WakeSys/wakesys-booking-plugin@v1.2.1/dist/plugin.js" async></script>
 ```
 
 Pin an exact version. `@1` is available if you prefer automatic patch updates, but this widget sits in a payment flow — pinning is the safer default.
@@ -220,7 +221,7 @@ Links to `wakesys.app` are decorated too, at the moment they are pressed: plain 
 A park that links out to its booking page instead of embedding the panel loads the same script and nothing else. With no `#wakesys-app` element on the page, no panel is created; the script only forwards attribution on wakesys links:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/WakeSys/wakesys-booking-plugin@v1.2.0/dist/plugin.js" async></script>
+<script src="https://cdn.jsdelivr.net/gh/WakeSys/wakesys-booking-plugin@v1.2.1/dist/plugin.js" async></script>
 ```
 
 Put it on every page of the site (Webflow: Site settings → Custom code → Footer code), so a visitor who lands on one page and books from another still carries the click. **One script either way:** don't add a separate attribution snippet next to the plugin.

@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.2.1
+
+Everything below was first tagged as 1.2.0 and the tag was moved; jsDelivr
+keeps exact versions permanently, so `@v1.2.0` serves the build without it.
+Use 1.2.1.
+
+### Added
+- Link forwarding. Links to `wakesys.app` are decorated with the same
+  attribution when pressed (mousedown, touch, Enter, context menu, click).
+  This covers plain links, links added later, and the Cmd/Ctrl/middle-clicks
+  and "open in new tab" the panel hands to the browser.
+- Works without a panel. With no `#wakesys-app` element, `plugin.js` creates
+  no panel and only forwards attribution on wakesys links, so a park that
+  links out instead of embedding loads this one script and nothing else.
+  `window.wakesysDecorateBookingUrl(url)` is installed for custom buttons;
+  `installLinkForwarding()` is exported for npm users.
+
+### Changed
+- Resuming. Whether an open resumes the existing booking or loads fresh is
+  now decided on the URL with every forwarded parameter stripped, so neither
+  a cookie the park's Pixel sets after the first open nor a link decorated
+  in place can reload the iframe and discard an in-progress booking.
+
 ## 1.2.0
 
 ### Added
@@ -19,22 +42,9 @@
   `renderMobileFallback`. `withAttribution(url)` is exported for custom
   triggers. See README, "Ad attribution".
 
-- Link forwarding. Links to `wakesys.app` are decorated with the same
-  attribution when pressed (mousedown, touch, Enter, context menu, click).
-  This covers plain links, links added later, and the Cmd/Ctrl/middle-clicks
-  and "open in new tab" the panel hands to the browser.
-- Works without a panel. With no `#wakesys-app` element, `plugin.js` creates
-  no panel and only forwards attribution on wakesys links, so a park that
-  links out instead of embedding loads this one script and nothing else.
-  `window.wakesysDecorateBookingUrl(url)` is installed for custom buttons;
-  `installLinkForwarding()` is exported for npm users.
-
 ### Unchanged
-- Resuming. Whether an open resumes the existing booking or loads fresh is
-  still decided on the URL with every forwarded parameter stripped, so
-  neither a cookie the park's Pixel sets after the first open nor a link
-  decorated in place can reload the iframe and discard an in-progress
-  booking.
+- Resuming. Whether an open resumes the existing booking is decided on the
+  configured URL, never the decorated one.
 
 ## 1.1.0
 
