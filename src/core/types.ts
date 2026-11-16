@@ -17,6 +17,8 @@ export interface BookingPanelConfig {
    * Called instead of window.open when the viewport is below the breakpoint.
    * Return true to signal the caller handled it; anything else falls through
    * to window.open.
+   * `url` already carries the visitor's ad attribution (see README, "Ad
+   * attribution"); open it as given.
    */
   onMobileOpen?: (url: string) => boolean | void;
   /**

@@ -360,3 +360,58 @@ describe('renderNotice', () => {
     expect(screen.queryByText('Demo Mode')).toBeNull();
   });
 });
+
+describe('ad attribution', () => {
+  const LANDING = '/?fbclid=IwAR1&utm_source=facebook';
+  const DECORATED = `${URL_A}?fbclid=IwAR1&utm_source=facebook`;
+
+  beforeEach(() => {
+    localStorage.clear();
+    history.replaceState(null, '', LANDING);
+  });
+  afterEach(() => {
+    localStorage.clear();
+    history.replaceState(null, '', '/');
+  });
+
+  it('persists the landing params when the provider mounts', () => {
+    render(<BookingPanelProvider bookingUrl={URL_A} />);
+    expect(JSON.parse(localStorage.getItem('wakesys_attribution')!).params)
+      .toEqual({ fbclid: 'IwAR1', utm_source: 'facebook' });
+  });
+
+  it('loads the iframe with the attribution appended', () => {
+    render(
+      <>
+        <Trigger />
+        <BookingPanelProvider bookingUrl={URL_A} />
+      </>,
+    );
+    history.replaceState(null, '', '/tickets'); // browsed on; storage carries it
+    act(() => { screen.getByRole('button', { name: /^(closed|open)$/ }).click(); });
+    expect(document.querySelector('iframe')!.getAttribute('src')).toBe(DECORATED);
+  });
+
+  it('hands renderMobileFallback the decorated URL, and confirm opens it', () => {
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true });
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(
+      <>
+        <Trigger />
+        <BookingPanelProvider
+          bookingUrl={URL_A}
+          renderMobileFallback={({ url, confirm }) => (
+            <div>
+              <span>fallback:{url}</span>
+              <button onClick={confirm}>go</button>
+            </div>
+          )}
+        />
+      </>,
+    );
+    act(() => { screen.getAllByRole('button')[0].click(); });
+    expect(screen.getByText(`fallback:${DECORATED}`)).toBeTruthy();
+    act(() => { screen.getByText('go').click(); });
+    expect(openSpy).toHaveBeenCalledWith(DECORATED, '_blank', 'noopener');
+  });
+});

@@ -6,6 +6,7 @@ Drop-in booking panel for any website. One script tag, one container.
 
 | Version | Released   | Notes              |
 | ------- | ---------- | ------------------- |
+| 1.2.0   | 2026-11-16 | Ad clicks (fbclid, gclid, UTMs, _fbp, _ga) on the host page are forwarded to the booking, so ad-driven bookings are attributed. |
 | 1.1.0   | 2026-09-16 | Closing keeps the booking; "Continue booking" pill; browser Back no longer closes the panel; localhost allowed in local development. |
 | 1.0.1   | 2026-08-21 | CDN URL and release-script fixes; corrected `?offer=` docs. |
 | 1.0.0   | 2026-08-20 | First public release. |
@@ -197,6 +198,27 @@ useEffect(() => {
 ```
 
 The plugin accepts the message only from its own iframe and only from `wakesys.app`, `staging.wakesys.app`, or localhost during local development. The path is the only field read; a wildcard target origin is fine because the message carries nothing sensitive.
+
+## Ad attribution
+
+The ad click usually lands on the park's own site, while the purchase happens on `wakesys.app`. Browsers keep each site's URL parameters and cookies to that site, so without help the booking looks unattributed to Meta, Google Ads and GA4. The plugin carries the attribution across by appending it to the booking URL it opens (iframe, mobile new tab, and the URL passed to `onMobileOpen` / `renderMobileFallback`):
+
+| Forwarded | From |
+| --------- | ---- |
+| `fbclid`, `gclid`, `gad_source`, `gbraid`, `wbraid`, `msclkid`, `ttclid`, `twclid`, `li_fat_id` | The page URL, else the visitor's landing page (stored for 30 days in `localStorage` under `wakesys_attribution`). `fbclid` is also recovered from the `_fbc` cookie. |
+| `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `utm_id` | The same, as one set: a newer campaign replaces the whole stored set, so values from two ads are never mixed. |
+| `_fbp`, `_ga` | The Meta Pixel and GA4 cookies on the park's site, only when they have the expected format. |
+
+A parameter already on the booking URL is never overridden, and none of this changes when an open resumes an existing booking. Nothing is sent anywhere else: the values only go into the booking URL. Storage or cookies that the browser blocks are skipped silently.
+
+The wakesys booking app turns these back into cookies and attribution on its side. Links you open yourself, outside the panel, can use the same decoration:
+
+```js
+import { withAttribution } from 'wakesys-booking-plugin';
+window.open(withAttribution('https://wakesys.app/your-park/booking'), '_blank');
+```
+
+**Parks on an older embed need to update the pinned version** in their script tag (or `npm install` tag) to get this. A pinned `@v1.1.0` keeps the old behaviour.
 
 ## Security
 

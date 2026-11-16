@@ -3,6 +3,7 @@ import { isAllowedUrl } from './allowlist';
 import { isMobile, normalizeBreakpoint } from './viewport';
 import { buildCss, ensureStyles, releaseStyles } from './styles';
 import { handleTabKey } from './focus-trap';
+import { persistAttributionFromUrl, withAttribution } from './attribution';
 
 const CLOSE_ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
@@ -37,6 +38,10 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
   let currentPath: string | null = null;
   let lengthAtOpen = 0;
   let grewWhileOpen = false;
+
+  // Captured once per panel: the landing page's click IDs and UTMs outlive
+  // the visitor browsing to another page before they book.
+  persistAttributionFromUrl();
 
   ensureStyles(buildCss(breakpoint, position));
 
@@ -156,11 +161,24 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
     grewWhileOpen = false;
   }
 
+  /**
+   * The URL actually navigated to: `target` plus the visitor's ad
+   * attribution. Applied only at the moment a URL leaves the panel (iframe
+   * src, window.open, onMobileOpen), never to `loadedUrl`: decoration reads
+   * cookies the park's Pixel may set after the first open, so comparing
+   * decorated URLs would make a later open() look like a new URL and cold-
+   * reload the iframe mid-booking.
+   */
+  function decorate(target: string): string {
+    const decorated = withAttribution(target);
+    return isAllowedUrl(decorated) ? decorated : target;
+  }
+
   function load(target: string): void {
-    loadedUrl = target;
+    loadedUrl = target; // undecorated, on purpose: see decorate()
     resetTracking();
     spinner.classList.remove('ws-hidden');
-    iframe.src = target;
+    iframe.src = decorate(target);
   }
 
   /** Discards the booking document: the next open() cold-loads. Cannot touch
@@ -182,8 +200,10 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
     }
 
     if (isMobile(breakpoint)) {
-      if (config.onMobileOpen?.(target) === true) return;
-      window.open(target, '_blank', 'noopener');
+      // Decorated before the callback too, so a custom handler forwards it.
+      const dest = decorate(target);
+      if (config.onMobileOpen?.(dest) === true) return;
+      window.open(dest, '_blank', 'noopener');
       return;
     }
 
@@ -191,6 +211,7 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
 
     // Same URL as the document already in the iframe: resume it as-is. Any
     // other URL (an offer deep link, a park switch) is a fresh navigation.
+    // Both sides are undecorated: attribution never decides this.
     if (target !== loadedUrl) load(target);
 
     if (wasOpen) return; // already shown: the URL swap above is all there is to do

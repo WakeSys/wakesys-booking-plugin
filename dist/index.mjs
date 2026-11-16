@@ -106,6 +106,188 @@ function handleTabKey(e, container) {
   }
 }
 
+// src/core/attribution.ts
+var CLICK_ID_PARAMS = [
+  "fbclid",
+  "gclid",
+  "gad_source",
+  "gbraid",
+  "wbraid",
+  "msclkid",
+  "ttclid",
+  "twclid",
+  "li_fat_id"
+];
+var UTM_PARAMS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "utm_id"
+];
+var STORAGE_KEY = "wakesys_attribution";
+var STORAGE_TTL_MS = 30 * 24 * 60 * 60 * 1e3;
+var FBP_RE = /^fb\.\d+\.\d+\.\d+$/;
+var GA_RE = /^GA\d+\.\d+\.\d+\.\d+$/;
+var FBCLID_RE = /^[A-Za-z0-9_.-]{1,400}$/;
+var FBC_RE = /^fb\.\d+\.\d+\.(.+)$/;
+function resolve(src = {}) {
+  var _a;
+  let search = src.search;
+  if (search === void 0) {
+    try {
+      search = typeof window === "undefined" ? "" : window.location.search;
+    } catch (e) {
+      search = "";
+    }
+  }
+  let cookie = src.cookie;
+  if (cookie === void 0) {
+    try {
+      cookie = typeof document === "undefined" ? "" : document.cookie;
+    } catch (e) {
+      cookie = "";
+    }
+  }
+  let storage;
+  if (src.storage !== void 0) {
+    storage = src.storage;
+  } else {
+    try {
+      storage = typeof window === "undefined" ? null : window.localStorage;
+    } catch (e) {
+      storage = null;
+    }
+  }
+  return { search: new URLSearchParams(search), cookie, storage, now: (_a = src.now) != null ? _a : Date.now() };
+}
+function readCookie(cookie, name) {
+  for (const part of cookie.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1 || part.slice(0, eq).trim() !== name) continue;
+    const raw = part.slice(eq + 1).trim();
+    if (!raw) return null;
+    try {
+      return decodeURIComponent(raw);
+    } catch (e) {
+      return raw;
+    }
+  }
+  return null;
+}
+function safeGet(storage, key) {
+  if (!storage) return null;
+  try {
+    return storage.getItem(key);
+  } catch (e) {
+    return null;
+  }
+}
+function readPersisted(r) {
+  const raw = safeGet(r.storage, STORAGE_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof (parsed == null ? void 0 : parsed.ts) !== "number" || r.now - parsed.ts > STORAGE_TTL_MS) return {};
+    if (!parsed.params || typeof parsed.params !== "object") return {};
+    const out = {};
+    for (const [k, v] of Object.entries(parsed.params)) {
+      if (typeof v === "string" && v) out[k] = v;
+    }
+    return out;
+  } catch (e) {
+    return {};
+  }
+}
+function fbclidFromFbc(r) {
+  var _a;
+  const fbc = (_a = readCookie(r.cookie, "_fbc")) != null ? _a : safeGet(r.storage, "_fbc");
+  const m = fbc ? FBC_RE.exec(fbc) : null;
+  return m && FBCLID_RE.test(m[1]) ? m[1] : null;
+}
+function persistAttributionFromUrl(src) {
+  try {
+    const r = resolve(src);
+    if (!r.storage) return;
+    const captured = {};
+    let touched = false;
+    for (const key of CLICK_ID_PARAMS) {
+      const v = r.search.get(key);
+      if (v) {
+        captured[key] = v;
+        touched = true;
+      }
+    }
+    const hasUtm = UTM_PARAMS.some((k) => r.search.get(k));
+    if (hasUtm) {
+      for (const key of UTM_PARAMS) {
+        const v = r.search.get(key);
+        if (v) captured[key] = v;
+      }
+      touched = true;
+    }
+    if (!touched) return;
+    const merged = readPersisted(r);
+    if (hasUtm) for (const key of UTM_PARAMS) delete merged[key];
+    Object.assign(merged, captured);
+    r.storage.setItem(STORAGE_KEY, JSON.stringify({ params: merged, ts: r.now }));
+  } catch (e) {
+  }
+}
+function withAttribution(url, src) {
+  let existing;
+  try {
+    existing = new URL(url).searchParams;
+  } catch (e) {
+    return url;
+  }
+  let add;
+  try {
+    add = collect(existing, resolve(src));
+  } catch (e) {
+    return url;
+  }
+  if (add.length === 0) return url;
+  const hashIndex = url.indexOf("#");
+  const base = hashIndex === -1 ? url : url.slice(0, hashIndex);
+  const hash = hashIndex === -1 ? "" : url.slice(hashIndex);
+  const query = add.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
+  const sep = !base.includes("?") ? "?" : base.endsWith("?") || base.endsWith("&") ? "" : "&";
+  return `${base}${sep}${query}${hash}`;
+}
+function collect(existing, r) {
+  const persisted = readPersisted(r);
+  const add = [];
+  const has = (k) => existing.has(k) || add.some(([a]) => a === k);
+  for (const key of CLICK_ID_PARAMS) {
+    if (existing.has(key)) continue;
+    const v = r.search.get(key) || persisted[key];
+    if (v) add.push([key, v]);
+  }
+  const targetHasUtm = UTM_PARAMS.some((k) => existing.has(k));
+  if (!targetHasUtm) {
+    const fromUrl = UTM_PARAMS.some((k) => r.search.get(k));
+    for (const key of UTM_PARAMS) {
+      const v = fromUrl ? r.search.get(key) : persisted[key];
+      if (v) add.push([key, v]);
+    }
+  }
+  if (!has("fbclid")) {
+    const fbclid = fbclidFromFbc(r);
+    if (fbclid) add.push(["fbclid", fbclid]);
+  }
+  if (!has("_fbp")) {
+    const fbp = readCookie(r.cookie, "_fbp");
+    if (fbp && FBP_RE.test(fbp)) add.push(["_fbp", fbp]);
+  }
+  if (!has("_ga")) {
+    const ga = readCookie(r.cookie, "_ga");
+    if (ga && GA_RE.test(ga)) add.push(["_ga", ga]);
+  }
+  return add;
+}
+
 // src/core/panel.ts
 var CLOSE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 var SPINNER_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
@@ -124,6 +306,7 @@ function createPanel(config) {
   let currentPath = null;
   let lengthAtOpen = 0;
   let grewWhileOpen = false;
+  persistAttributionFromUrl();
   ensureStyles(buildCss(breakpoint, position));
   const overlay = document.createElement("div");
   overlay.className = "ws-overlay";
@@ -209,11 +392,15 @@ function createPanel(config) {
     lengthAtOpen = history.length;
     grewWhileOpen = false;
   }
+  function decorate(target) {
+    const decorated = withAttribution(target);
+    return isAllowedUrl(decorated) ? decorated : target;
+  }
   function load(target) {
     loadedUrl = target;
     resetTracking();
     spinner.classList.remove("ws-hidden");
-    iframe.src = target;
+    iframe.src = decorate(target);
   }
   function unload() {
     loadedUrl = null;
@@ -230,8 +417,9 @@ function createPanel(config) {
       return;
     }
     if (isMobile(breakpoint)) {
-      if (((_a2 = config.onMobileOpen) == null ? void 0 : _a2.call(config, target)) === true) return;
-      window.open(target, "_blank", "noopener");
+      const dest = decorate(target);
+      if (((_a2 = config.onMobileOpen) == null ? void 0 : _a2.call(config, dest)) === true) return;
+      window.open(dest, "_blank", "noopener");
       return;
     }
     const wasOpen = isShown();
@@ -363,6 +551,7 @@ export {
   ALLOWED_ORIGINS,
   DEFAULT_MOBILE_BREAKPOINT,
   createBookingPanel,
-  isAllowedUrl
+  isAllowedUrl,
+  withAttribution
 };
 //# sourceMappingURL=index.mjs.map

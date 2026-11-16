@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.2.0
+
+### Added
+- Ad attribution is forwarded to the booking app. The park's marketing page
+  usually receives the ad click, but its click IDs and cookies live on the
+  park's domain, so the wakesys GTM container saw every plugin booking as
+  unattributed and Meta / Google Ads purchases could not be tied back to the
+  ad. The panel now appends, when present: click IDs (`fbclid`, `gclid`,
+  `gad_source`, `gbraid`, `wbraid`, `msclkid`, `ttclid`, `twclid`,
+  `li_fat_id`) and `utm_*` from the page URL; `fbclid` recovered from the
+  `_fbc` cookie; and the `_fbp` / `_ga` cookies, only when they match the
+  formats the booking side accepts. Landing-page click IDs and UTMs are kept
+  in `localStorage` (`wakesys_attribution`, 30 days) so a visitor who browses
+  before booking still carries them. Params already on the booking URL win,
+  and UTMs travel as one set, never mixed from two campaigns. Applies to the
+  iframe, the mobile new tab, and the URL handed to `onMobileOpen` /
+  `renderMobileFallback`. `withAttribution(url)` is exported for custom
+  triggers. See README, "Ad attribution".
+
+### Unchanged
+- Resuming. Whether an open resumes the existing booking or loads fresh is
+  still decided on the configured URL, never the decorated one, so a cookie
+  the park's Pixel sets after the first open cannot reload the iframe and
+  discard an in-progress booking.
+
 ## 1.1.0
 
 ### Changed
