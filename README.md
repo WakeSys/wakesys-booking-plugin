@@ -6,7 +6,7 @@ Drop-in booking panel for any website. One script tag, one container.
 
 | Version | Released   | Notes              |
 | ------- | ---------- | ------------------- |
-| 1.2.0   | 2026-11-16 | Ad clicks (fbclid, gclid, UTMs, _fbp, _ga) on the host page are forwarded to the booking, so ad-driven bookings are attributed. |
+| 1.2.0   | 2026-11-16 | Ad clicks (fbclid, gclid, UTMs, _fbp, _ga) are forwarded to the booking, in the panel and on every wakesys link; the script also works without a panel, for parks that only link out. |
 | 1.1.0   | 2026-09-16 | Closing keeps the booking; "Continue booking" pill; browser Back no longer closes the panel; localhost allowed in local development. |
 | 1.0.1   | 2026-08-21 | CDN URL and release-script fixes; corrected `?offer=` docs. |
 | 1.0.0   | 2026-08-20 | First public release. |
@@ -211,7 +211,27 @@ The ad click usually lands on the park's own site, while the purchase happens on
 
 A parameter already on the booking URL is never overridden, and none of this changes when an open resumes an existing booking. Nothing is sent anywhere else: the values only go into the booking URL. Storage or cookies that the browser blocks are skipped silently.
 
-The wakesys booking app turns these back into cookies and attribution on its side. Links you open yourself, outside the panel, can use the same decoration:
+The wakesys booking app turns these back into cookies and attribution on its side.
+
+Links to `wakesys.app` are decorated too, at the moment they are pressed: plain links, links the site adds later, and Cmd/Ctrl/middle-clicks and "open in new tab" on panel links, which the panel leaves to the browser. A booking resumes whether or not its link was decorated in place.
+
+### Parks that only link to wakesys
+
+A park that links out to its booking page instead of embedding the panel loads the same script and nothing else. With no `#wakesys-app` element on the page, no panel is created; the script only forwards attribution on wakesys links:
+
+```html
+<script src="https://cdn.jsdelivr.net/gh/WakeSys/wakesys-booking-plugin@v1.2.0/dist/plugin.js" async></script>
+```
+
+Put it on every page of the site (Webflow: Site settings → Custom code → Footer code), so a visitor who lands on one page and books from another still carries the click. **One script either way:** don't add a separate attribution snippet next to the plugin.
+
+For a button that opens the booking from your own code, use the helper the script installs:
+
+```js
+window.open(window.wakesysDecorateBookingUrl('https://wakesys.app/your-park/booking'), '_blank');
+```
+
+From npm, the same pieces are exports: `withAttribution(url)`, and `installLinkForwarding()` for a link-only setup.
 
 ```js
 import { withAttribution } from 'wakesys-booking-plugin';

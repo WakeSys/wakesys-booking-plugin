@@ -275,3 +275,23 @@ function collect(existing: URLSearchParams, r: Resolved): Array<[string, string]
 
   return add;
 }
+
+/** Every query parameter `withAttribution` can add. */
+export const FORWARDED_PARAMS: readonly string[] = [...CLICK_ID_PARAMS, ...UTM_PARAMS, '_fbp', '_ga'];
+
+/**
+ * `url` with every parameter `withAttribution` could have added removed.
+ * Used only as a comparison key ("is this the booking already in the
+ * iframe?"), never navigated to: a booking link decorated in place by the
+ * link forwarder must still resume the booking it points at. Unparseable
+ * input comes back as is.
+ */
+export function withoutAttribution(url: string): string {
+  try {
+    const u = new URL(url);
+    for (const k of FORWARDED_PARAMS) u.searchParams.delete(k);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}

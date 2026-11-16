@@ -3,10 +3,15 @@ import { isAllowedUrl } from './core/allowlist';
 import { normalizeBreakpoint } from './core/viewport';
 import { appendOffer } from './core/offer';
 import type { BookingPanelInstance } from './core/types';
+import { withAttribution } from './core/attribution';
+import { installLinkForwarding } from './core/link-forwarding';
 
 declare global {
   interface Window {
     __wakesysPluginLoaded?: boolean;
+    /** Adds the visitor's ad attribution to a wakesys booking URL, for
+     *  buttons that open the booking from the park's own code. */
+    wakesysDecorateBookingUrl?: (url: string) => string;
     BookingPanel?: {
       open: (url?: string) => void;
       close: () => void;
@@ -29,7 +34,24 @@ function installNoopGlobal(reason: string): void {
   };
 }
 
+// Link forwarding runs whether or not a panel boots: a park that only links
+// to wakesys loads plugin.js for exactly this, with no #wakesys-app at all.
+// Held at module level so a re-boot (SPA remount, tests) replaces the
+// listeners instead of stacking them.
+let stopLinkForwarding: (() => void) | null = null;
+
+function startLinkForwarding(): void {
+  try {
+    stopLinkForwarding?.();
+    stopLinkForwarding = installLinkForwarding();
+    window.wakesysDecorateBookingUrl = (url: string) => withAttribution(url);
+  } catch {
+    // A hostile host page must not stop the panel from booting.
+  }
+}
+
 export function bootFromDom(): BookingPanelInstance | null {
+  startLinkForwarding();
   try {
     return boot();
   } catch (err) {
@@ -150,6 +172,9 @@ function boot(): BookingPanelInstance | null {
 
       for (const { el, handler } of listeners) el.removeEventListener('click', handler);
       listeners.length = 0;
+
+      stopLinkForwarding?.();
+      stopLinkForwarding = null;
 
       panel.destroy();
     },

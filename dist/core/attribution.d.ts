@@ -65,4 +65,14 @@ export declare function persistAttributionFromUrl(src?: AttributionSources): voi
  * there is nothing to forward or it does not parse.
  */
 export declare function withAttribution(url: string, src?: AttributionSources): string;
+/** Every query parameter `withAttribution` can add. */
+export declare const FORWARDED_PARAMS: readonly string[];
+/**
+ * `url` with every parameter `withAttribution` could have added removed.
+ * Used only as a comparison key ("is this the booking already in the
+ * iframe?"), never navigated to: a booking link decorated in place by the
+ * link forwarder must still resume the booking it points at. Unparseable
+ * input comes back as is.
+ */
+export declare function withoutAttribution(url: string): string;
 export {};

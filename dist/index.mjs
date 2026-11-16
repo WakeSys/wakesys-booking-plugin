@@ -287,6 +287,16 @@ function collect(existing, r) {
   }
   return add;
 }
+var FORWARDED_PARAMS = [...CLICK_ID_PARAMS, ...UTM_PARAMS, "_fbp", "_ga"];
+function withoutAttribution(url) {
+  try {
+    const u = new URL(url);
+    for (const k of FORWARDED_PARAMS) u.searchParams.delete(k);
+    return u.toString();
+  } catch (e) {
+    return url;
+  }
+}
 
 // src/core/panel.ts
 var CLOSE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
@@ -423,7 +433,9 @@ function createPanel(config) {
       return;
     }
     const wasOpen = isShown();
-    if (target !== loadedUrl) load(target);
+    if (loadedUrl === null || withoutAttribution(target) !== withoutAttribution(loadedUrl)) {
+      load(target);
+    }
     if (wasOpen) return;
     lengthAtOpen = history.length;
     lastFocused = document.activeElement;
@@ -538,6 +550,41 @@ function createPanel(config) {
   };
 }
 
+// src/core/link-forwarding.ts
+function isWakesysUrl(href) {
+  try {
+    return ALLOWED_ORIGINS.includes(new URL(href).origin);
+  } catch (e) {
+    return false;
+  }
+}
+function installLinkForwarding(doc = document) {
+  persistAttributionFromUrl();
+  const onPress = (e) => {
+    const target = e.target;
+    const link = target && typeof target.closest === "function" ? target.closest("a[href]") : null;
+    if (!link || !isWakesysUrl(link.href)) return;
+    const next = withAttribution(link.href);
+    if (next !== link.href) link.href = next;
+  };
+  const onKey = (e) => {
+    if (e.key === "Enter") onPress(e);
+  };
+  const opts = { capture: true, passive: true };
+  doc.addEventListener("mousedown", onPress, opts);
+  doc.addEventListener("touchstart", onPress, opts);
+  doc.addEventListener("contextmenu", onPress, opts);
+  doc.addEventListener("click", onPress, opts);
+  doc.addEventListener("keydown", onKey, opts);
+  return () => {
+    doc.removeEventListener("mousedown", onPress, opts);
+    doc.removeEventListener("touchstart", onPress, opts);
+    doc.removeEventListener("contextmenu", onPress, opts);
+    doc.removeEventListener("click", onPress, opts);
+    doc.removeEventListener("keydown", onKey, opts);
+  };
+}
+
 // src/core/index.ts
 function createBookingPanel(config) {
   if (!isAllowedUrl(config.bookingUrl)) {
@@ -551,6 +598,7 @@ export {
   ALLOWED_ORIGINS,
   DEFAULT_MOBILE_BREAKPOINT,
   createBookingPanel,
+  installLinkForwarding,
   isAllowedUrl,
   withAttribution
 };

@@ -3,7 +3,7 @@ import { isAllowedUrl } from './allowlist';
 import { isMobile, normalizeBreakpoint } from './viewport';
 import { buildCss, ensureStyles, releaseStyles } from './styles';
 import { handleTabKey } from './focus-trap';
-import { persistAttributionFromUrl, withAttribution } from './attribution';
+import { persistAttributionFromUrl, withAttribution, withoutAttribution } from './attribution';
 
 const CLOSE_ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
@@ -211,8 +211,12 @@ export function createPanel(config: BookingPanelConfig): BookingPanelInstance {
 
     // Same URL as the document already in the iframe: resume it as-is. Any
     // other URL (an offer deep link, a park switch) is a fresh navigation.
-    // Both sides are undecorated: attribution never decides this.
-    if (target !== loadedUrl) load(target);
+    // Compared with forwarded ad params stripped from both sides: the link
+    // forwarder may already have decorated a booking link in place, and
+    // attribution must never decide whether a booking is thrown away.
+    if (loadedUrl === null || withoutAttribution(target) !== withoutAttribution(loadedUrl)) {
+      load(target);
+    }
 
     if (wasOpen) return; // already shown: the URL swap above is all there is to do
 

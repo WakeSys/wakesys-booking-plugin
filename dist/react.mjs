@@ -297,6 +297,16 @@ function collect(existing, r) {
   }
   return add;
 }
+var FORWARDED_PARAMS = [...CLICK_ID_PARAMS, ...UTM_PARAMS, "_fbp", "_ga"];
+function withoutAttribution(url) {
+  try {
+    const u = new URL(url);
+    for (const k of FORWARDED_PARAMS) u.searchParams.delete(k);
+    return u.toString();
+  } catch (e) {
+    return url;
+  }
+}
 
 // src/core/panel.ts
 var CLOSE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
@@ -433,7 +443,9 @@ function createPanel(config) {
       return;
     }
     const wasOpen = isShown();
-    if (target !== loadedUrl) load(target);
+    if (loadedUrl === null || withoutAttribution(target) !== withoutAttribution(loadedUrl)) {
+      load(target);
+    }
     if (wasOpen) return;
     lengthAtOpen = history.length;
     lastFocused = document.activeElement;

@@ -14,4 +14,5 @@ export function createBookingPanel(config: BookingPanelConfig): BookingPanelInst
 export { isAllowedUrl, ALLOWED_ORIGINS } from './allowlist';
 export { DEFAULT_MOBILE_BREAKPOINT } from './viewport';
 export { withAttribution } from './attribution';
+export { installLinkForwarding } from './link-forwarding';
 export type { BookingPanelConfig, BookingPanelInstance } from './types';
